@@ -6,7 +6,8 @@ import logging
 from pathlib import Path
 from typing import Sequence
 
-import httpx
+from curl_cffi import requests as curl_requests
+from curl_cffi.requests.errors import RequestsError
 from tenacity import AsyncRetrying, retry_if_exception_type, stop_after_attempt, wait_exponential_jitter
 from tqdm.asyncio import tqdm as tqdm_async
 
@@ -15,7 +16,7 @@ from .state import mark_status, pending
 
 log = logging.getLogger(__name__)
 
-_TRANSIENT = (httpx.TransportError, httpx.HTTPStatusError, httpx.TimeoutException)
+_TRANSIENT = (RequestsError,)
 
 
 def _local_path(arquivo: str, doc_id: str) -> Path:
@@ -38,12 +39,14 @@ def _local_path(arquivo: str, doc_id: str) -> Path:
 
 
 async def _download_one(
-    client: httpx.AsyncClient,
+    client: curl_requests.AsyncSession,
     sem: asyncio.Semaphore,
     row: dict,
 ) -> tuple[str, str, str | None, int | None]:
     doc_id = row["doc_id"]
     url = row["url"]
+    if url.startswith("http://"):
+        url = "https://" + url[len("http://"):]
     arquivo = row["arquivo"] or f"{doc_id}.pdf"
     dest = _local_path(arquivo, doc_id)
 
@@ -59,8 +62,9 @@ async def _download_one(
                 reraise=True,
             ):
                 with attempt:
-                    resp = await client.get(url)
-                    resp.raise_for_status()
+                    resp = await client.get(url, timeout=SETTINGS.download.timeout_s)
+                    if resp.status_code >= 400:
+                        raise RequestsError(f"HTTP {resp.status_code} for {url}")
                     content = resp.content
             tmp = dest.with_suffix(dest.suffix + ".part")
             tmp.write_bytes(content)
@@ -76,12 +80,14 @@ async def run_downloads(limit: int | None = None) -> dict:
     if not rows:
         return {"pending": 0, "done": 0, "errors": 0}
 
-    headers = {"User-Agent": SETTINGS.download.user_agent, "Accept": "application/pdf,*/*"}
-    timeout = httpx.Timeout(SETTINGS.download.timeout_s)
     sem = asyncio.Semaphore(SETTINGS.download.concurrency)
 
     done = errors = 0
-    async with httpx.AsyncClient(headers=headers, timeout=timeout, follow_redirects=True) as client:
+    async with curl_requests.AsyncSession(
+        impersonate="chrome",
+        timeout=SETTINGS.download.timeout_s,
+        max_redirects=10,
+    ) as client:
         tasks = [
             asyncio.create_task(_download_one(client, sem, dict(r)))
             for r in rows

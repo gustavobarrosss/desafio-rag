@@ -2,7 +2,6 @@
 __pycache__/
 data/
 qdrant_storage/
-*.json
 !package.json
 !package-lock.json
 !tsconfig.json

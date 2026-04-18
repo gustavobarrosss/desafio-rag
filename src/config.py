@@ -44,12 +44,12 @@ class RouterConfig:
 
 @dataclass
 class VisionConfig:
-    model: str = field(default_factory=lambda: os.getenv("OPENROUTER_MODEL", "google/gemma-4-31b-it:free"))
-    fallback_model: str = field(default_factory=lambda: os.getenv("OPENROUTER_FALLBACK_MODEL", "google/gemma-3-27b-it:free"))
-    api_key: str = field(default_factory=lambda: os.getenv("OPENROUTER_API_KEY", ""))
-    base_url: str = "https://openrouter.ai/api/v1"
-    rpm: int = field(default_factory=lambda: int(os.getenv("OPENROUTER_RPM", "20")))
-    rpd: int = field(default_factory=lambda: int(os.getenv("OPENROUTER_RPD", "200")))
+    model: str = field(default_factory=lambda: os.getenv("VERTEXAI_MODEL", "gemini-2.5-flash"))
+    fallback_model: str = field(default_factory=lambda: os.getenv("VERTEXAI_FALLBACK_MODEL", "gemini-2.5-flash-lite"))
+    project: str = field(default_factory=lambda: os.getenv("GOOGLE_CLOUD_PROJECT", ""))
+    location: str = field(default_factory=lambda: os.getenv("GOOGLE_CLOUD_LOCATION", "us-central1"))
+    rpm: int = field(default_factory=lambda: int(os.getenv("VERTEXAI_RPM", "60")))
+    rpd: int = field(default_factory=lambda: int(os.getenv("VERTEXAI_RPD", "1000")))
     render_dpi: int = 180
     max_workers: int = 4
 

@@ -1,8 +1,4 @@
-"""Vision-based page parser: Gemma via OpenRouter for scanned / complex pages.
-
-Only invoked for pages flagged by the fast path as `needs_vision`. The model is
-expected to emit markdown preserving strikethrough (~~...~~) and tables.
-"""
+"""Vision-based page parser: Gemini via Vertex AI for scanned / complex pages."""
 from __future__ import annotations
 
 import asyncio
@@ -11,11 +7,12 @@ import json
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, Optional
+from typing import Optional
 
 import fitz
-import httpx
-from tenacity import AsyncRetrying, retry_if_exception_type, stop_after_attempt, wait_exponential_jitter
+from google import genai
+from google.genai.types import GenerateContentConfig, Part
+from tenacity import AsyncRetrying, stop_after_attempt, wait_exponential_jitter
 
 from .config import PARSED_DIR, SETTINGS
 from .parse_digital import load_parsed
@@ -53,47 +50,31 @@ def _page_png_b64(doc: fitz.Document, page_index: int, dpi: int) -> str:
 class VisionClient:
     def __init__(self) -> None:
         cfg = SETTINGS.vision
-        if not cfg.api_key:
-            raise RuntimeError("OPENROUTER_API_KEY not set")
+        if not cfg.project:
+            raise RuntimeError("GOOGLE_CLOUD_PROJECT not set")
         self.cfg = cfg
         self.limiter = RateLimiter(Budget(rpm=cfg.rpm, rpd=cfg.rpd))
-        self._client = httpx.AsyncClient(
-            base_url=cfg.base_url,
-            timeout=httpx.Timeout(120),
-            headers={
-                "Authorization": f"Bearer {cfg.api_key}",
-                "HTTP-Referer": "https://github.com/ceia-desafio-rag",
-                "X-Title": "aneel-rag-ingest",
-            },
-        )
+        self._client = genai.Client(vertexai=True, project=cfg.project, location=cfg.location)
         self._active_model = cfg.model
         self._fallback_used = False
 
     async def close(self) -> None:
-        await self._client.aclose()
+        pass
 
     async def _call(self, img_b64: str, model: str) -> str:
-        payload = {
-            "model": model,
-            "messages": [
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": PROMPT},
-                        {"type": "image_url",
-                         "image_url": {"url": f"data:image/png;base64,{img_b64}"}},
-                    ],
-                }
-            ],
-            "temperature": 0.0,
-            "max_tokens": 4096,
-        }
-        resp = await self._client.post("/chat/completions", json=payload)
-        if resp.status_code == 404:
-            raise ValueError(f"model {model} not found on OpenRouter")
-        resp.raise_for_status()
-        data = resp.json()
-        return data["choices"][0]["message"]["content"]
+        image_bytes = base64.b64decode(img_b64)
+        image_part = Part.from_bytes(data=image_bytes, mime_type="image/png")
+        gen_config = GenerateContentConfig(temperature=0.0, max_output_tokens=4096)
+        loop = asyncio.get_event_loop()
+        response = await loop.run_in_executor(
+            None,
+            lambda: self._client.models.generate_content(
+                model=model,
+                contents=[PROMPT, image_part],
+                config=gen_config,
+            ),
+        )
+        return response.text or ""
 
     async def transcribe(self, img_b64: str) -> tuple[str, str]:
         await self.limiter.acquire()
@@ -101,13 +82,12 @@ class VisionClient:
             async for attempt in AsyncRetrying(
                 stop=stop_after_attempt(3),
                 wait=wait_exponential_jitter(initial=2, max=30),
-                retry=retry_if_exception_type((httpx.HTTPStatusError, httpx.TransportError)),
                 reraise=True,
             ):
                 with attempt:
                     text = await self._call(img_b64, self._active_model)
             return text, self._active_model
-        except ValueError as exc:
+        except Exception as exc:
             if not self._fallback_used and self._active_model != self.cfg.fallback_model:
                 log.warning("primary model failed (%s); switching to %s", exc, self.cfg.fallback_model)
                 self._active_model = self.cfg.fallback_model

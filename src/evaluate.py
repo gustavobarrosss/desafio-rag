@@ -70,20 +70,12 @@ JUDGE_PROMPT = (
 
 
 async def _judge(client: QAClient, question: str, gold: str, candidate: str) -> tuple[float | None, str | None]:
-    await client.limiter.acquire()
-    payload = {
-        "model": client._active_model,
-        "messages": [
-            {"role": "system", "content": JUDGE_PROMPT},
-            {"role": "user", "content": f"PERGUNTA: {question}\n\nGOLD:\n{gold}\n\nCANDIDATA:\n{candidate}"},
-        ],
-        "temperature": 0.0,
-        "max_tokens": 300,
-    }
     try:
-        resp = await client._client.post("/chat/completions", json=payload)
-        resp.raise_for_status()
-        content = resp.json()["choices"][0]["message"]["content"]
+        content = await client.generate(
+            JUDGE_PROMPT,
+            f"PERGUNTA: {question}\n\nGOLD:\n{gold}\n\nCANDIDATA:\n{candidate}",
+            max_tokens=300,
+        )
         start = content.find("{")
         end = content.rfind("}")
         if start < 0 or end < 0:

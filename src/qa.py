@@ -1,4 +1,4 @@
-"""Question answering on top of the hybrid retriever using Gemma via OpenRouter."""
+"""Question answering on top of the hybrid retriever using Gemini via Vertex AI."""
 from __future__ import annotations
 
 import asyncio
@@ -6,8 +6,9 @@ import logging
 from dataclasses import dataclass
 from typing import Any
 
-import httpx
-from tenacity import AsyncRetrying, retry_if_exception_type, stop_after_attempt, wait_exponential_jitter
+from google import genai
+from google.genai.types import GenerateContentConfig
+from tenacity import AsyncRetrying, stop_after_attempt, wait_exponential_jitter
 
 from .config import SETTINGS
 from .retriever import RetrievedChunk, search
@@ -52,54 +53,61 @@ def _format_chunks(chunks: list[RetrievedChunk]) -> str:
 class QAClient:
     def __init__(self) -> None:
         cfg = SETTINGS.vision
-        if not cfg.api_key:
-            raise RuntimeError("OPENROUTER_API_KEY not set")
+        if not cfg.project:
+            raise RuntimeError("GOOGLE_CLOUD_PROJECT not set")
         self.cfg = cfg
         self.limiter = RateLimiter(Budget(rpm=cfg.rpm, rpd=cfg.rpd))
-        self._client = httpx.AsyncClient(
-            base_url=cfg.base_url,
-            timeout=httpx.Timeout(120),
-            headers={
-                "Authorization": f"Bearer {cfg.api_key}",
-                "HTTP-Referer": "https://github.com/ceia-desafio-rag",
-                "X-Title": "aneel-rag-qa",
-            },
-        )
+        self._client = genai.Client(vertexai=True, project=cfg.project, location=cfg.location)
         self._active_model = cfg.model
 
     async def close(self) -> None:
-        await self._client.aclose()
+        pass
 
-    async def _call(self, messages: list[dict[str, Any]], model: str) -> str:
-        payload = {"model": model, "messages": messages, "temperature": 0.0, "max_tokens": 1200}
-        resp = await self._client.post("/chat/completions", json=payload)
-        if resp.status_code == 404:
-            raise ValueError(f"model {model} not found on OpenRouter")
-        resp.raise_for_status()
-        data = resp.json()
-        return data["choices"][0]["message"]["content"]
+    async def _call(self, system_prompt: str, user_content: str, model: str, max_tokens: int = 1200) -> str:
+        gen_config = GenerateContentConfig(
+            system_instruction=system_prompt,
+            temperature=0.0,
+            max_output_tokens=max_tokens,
+        )
+        loop = asyncio.get_event_loop()
+        response = await loop.run_in_executor(
+            None,
+            lambda: self._client.models.generate_content(
+                model=model,
+                contents=user_content,
+                config=gen_config,
+            ),
+        )
+        return response.text or ""
+
+    async def generate(self, system_prompt: str, user_content: str, max_tokens: int = 300) -> str:
+        await self.limiter.acquire()
+        async for attempt in AsyncRetrying(
+            stop=stop_after_attempt(3),
+            wait=wait_exponential_jitter(initial=2, max=30),
+            reraise=True,
+        ):
+            with attempt:
+                return await self._call(system_prompt, user_content, self._active_model, max_tokens)
+        raise RuntimeError("unreachable")
 
     async def answer(self, question: str, chunks: list[RetrievedChunk]) -> Answer:
         await self.limiter.acquire()
         context = _format_chunks(chunks)
-        messages = [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": f"TRECHOS:\n{context}\n\nPERGUNTA: {question}"},
-        ]
+        user_content = f"TRECHOS:\n{context}\n\nPERGUNTA: {question}"
         try:
             async for attempt in AsyncRetrying(
                 stop=stop_after_attempt(3),
                 wait=wait_exponential_jitter(initial=2, max=30),
-                retry=retry_if_exception_type((httpx.HTTPStatusError, httpx.TransportError)),
                 reraise=True,
             ):
                 with attempt:
-                    text = await self._call(messages, self._active_model)
-        except ValueError:
+                    text = await self._call(SYSTEM_PROMPT, user_content, self._active_model)
+        except Exception:
             if self._active_model != self.cfg.fallback_model:
                 log.warning("switching to fallback model %s", self.cfg.fallback_model)
                 self._active_model = self.cfg.fallback_model
-                text = await self._call(messages, self._active_model)
+                text = await self._call(SYSTEM_PROMPT, user_content, self._active_model)
             else:
                 raise
         citations = [

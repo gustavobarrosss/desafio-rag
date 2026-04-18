@@ -10,13 +10,13 @@ from pathlib import Path
 from typing import Optional
 
 import fitz
-from google import genai
 from google.genai.types import GenerateContentConfig, Part, ThinkingConfig
 from tenacity import AsyncRetrying, stop_after_attempt, wait_exponential_jitter
 
 from .config import PARSED_DIR, SETTINGS
 from .parse_digital import load_parsed
 from .utils.rate_limiter import Budget, RateLimiter
+from .utils.vertex_client import build_vertex_client
 
 log = logging.getLogger(__name__)
 
@@ -54,7 +54,7 @@ class VisionClient:
             raise RuntimeError("GOOGLE_CLOUD_PROJECT not set")
         self.cfg = cfg
         self.limiter = RateLimiter(Budget(rpm=cfg.rpm, rpd=cfg.rpd))
-        self._client = genai.Client(vertexai=True, project=cfg.project, location=cfg.location)
+        self._client = build_vertex_client(cfg.project, cfg.location, cfg.credentials_path)
         self._active_model = cfg.model
         self._fallback_used = False
 

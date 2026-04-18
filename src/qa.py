@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from google import genai
-from google.genai.types import GenerateContentConfig
+from google.genai.types import GenerateContentConfig, ThinkingConfig
 from tenacity import AsyncRetrying, stop_after_attempt, wait_exponential_jitter
 
 from .config import SETTINGS
@@ -68,6 +68,7 @@ class QAClient:
             system_instruction=system_prompt,
             temperature=0.0,
             max_output_tokens=max_tokens,
+            thinking_config=ThinkingConfig(thinking_budget=0),
         )
         loop = asyncio.get_event_loop()
         response = await loop.run_in_executor(

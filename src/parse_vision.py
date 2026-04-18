@@ -11,7 +11,7 @@ from typing import Optional
 
 import fitz
 from google import genai
-from google.genai.types import GenerateContentConfig, Part
+from google.genai.types import GenerateContentConfig, Part, ThinkingConfig
 from tenacity import AsyncRetrying, stop_after_attempt, wait_exponential_jitter
 
 from .config import PARSED_DIR, SETTINGS
@@ -64,7 +64,11 @@ class VisionClient:
     async def _call(self, img_b64: str, model: str) -> str:
         image_bytes = base64.b64decode(img_b64)
         image_part = Part.from_bytes(data=image_bytes, mime_type="image/png")
-        gen_config = GenerateContentConfig(temperature=0.0, max_output_tokens=4096)
+        gen_config = GenerateContentConfig(
+            temperature=0.0,
+            max_output_tokens=4096,
+            thinking_config=ThinkingConfig(thinking_budget=0),
+        )
         loop = asyncio.get_event_loop()
         response = await loop.run_in_executor(
             None,

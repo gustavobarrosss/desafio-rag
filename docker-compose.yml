@@ -10,3 +10,23 @@ services:
     environment:
       - QDRANT__SERVICE__GRPC_PORT=6334
     restart: unless-stopped
+
+  qa:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.qa
+    container_name: aneel-qa
+    depends_on:
+      - qdrant
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env
+    environment:
+      - QDRANT_URL=http://qdrant:6333
+      - EMBED_DEVICE=cpu
+      - PORT=8080
+    volumes:
+      # Cache modelos do HuggingFace entre restarts (evita re-download)
+      - ./hf_cache:/models
+    restart: unless-stopped

@@ -1,0 +1,39 @@
+# Batch pipeline image: init / download / parse / vision / chunk.
+# Not used for embed (see Dockerfile.embed — needs CUDA).
+FROM python:3.11-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+# System deps:
+# - poppler-utils, ghostscript: required by camelot for table extraction
+# - libgl1, libglib2.0-0: opencv runtime deps (camelot-py[cv])
+# - build-essential, libffi-dev: compile curl_cffi if wheel unavailable
+# - curl, ca-certificates: health checks / debugging
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        poppler-utils \
+        ghostscript \
+        libgl1 \
+        libglib2.0-0 \
+        build-essential \
+        libffi-dev \
+        curl \
+        ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY requirements.txt ./
+RUN pip install -r requirements.txt \
+    && pip install curl_cffi
+
+COPY src ./src
+COPY run_pipeline.py ./
+
+ENV DATA_DIR=/mnt/gcs/aneel-rag-data \
+    STATE_DB_PATH=/var/lib/aneel/state.sqlite
+
+ENTRYPOINT ["python", "run_pipeline.py"]
+CMD ["status"]

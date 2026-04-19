@@ -1,0 +1,50 @@
+# Vertex AI Custom Job spec — embedding step (BGE-M3 on GPU).
+# Submit with:
+#   gcloud ai custom-jobs create \
+#     --region=us-central1 \
+#     --display-name=aneel-embed \
+#     --config=deploy/embed-job.yaml
+#
+# Placeholders to fill before submitting:
+#   - ${ARTIFACT_REGISTRY}  e.g. us-central1-docker.pkg.dev/desafio-rag/aneel
+#   - ${IMAGE_TAG}          e.g. latest
+#   - ${GCS_BUCKET}         e.g. aneel-rag-data-desafio-rag
+#   - ${VM_INTERNAL_IP}     IP interno da VM onde o Qdrant escuta (ex: 10.128.0.2)
+#   - ${GCP_LLM_PROJECT}    bionic-medley-489719-t5 (apenas se embed chamar Vertex)
+#
+# Nota: job usa T4 spot (preemptível) → ~60% de desconto. Embed é idempotente
+# (state.sqlite marca docs com status_embed='ok'), então preempção é OK.
+
+workerPoolSpecs:
+  - machineSpec:
+      machineType: n1-standard-4
+      acceleratorType: NVIDIA_TESLA_T4
+      acceleratorCount: 1
+    replicaCount: 1
+    containerSpec:
+      imageUri: ${ARTIFACT_REGISTRY}/embed:${IMAGE_TAG}
+      command:
+        - python
+        - run_pipeline.py
+      args:
+        - embed
+      env:
+        - name: QDRANT_URL
+          value: http://${VM_INTERNAL_IP}:6333
+        - name: QDRANT_COLLECTION
+          value: aneel_legis
+        - name: GCS_BUCKET
+          value: ${GCS_BUCKET}
+        - name: DATA_DIR
+          value: /mnt/gcs/aneel-rag-data
+        - name: EMBED_DEVICE
+          value: cuda
+        - name: EMBED_BATCH
+          value: "64"
+
+# Spot (preemptível) para reduzir custo. Remove as duas linhas abaixo se quiser
+# execução não-interruptível.
+scheduling:
+  strategy: SPOT
+  # Tempo máximo de execução (segundos). 14h cobre o full embed inicial.
+  timeout: 50400s

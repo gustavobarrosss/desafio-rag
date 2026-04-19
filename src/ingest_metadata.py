@@ -7,7 +7,7 @@ import re
 from pathlib import Path
 from typing import Any, Iterator
 
-from .config import METADATA_FILES
+from .config import METADATA_FILES, bootstrap_metadata
 from .state import bulk_upsert_docs, init_db
 
 
@@ -73,6 +73,7 @@ def iter_records(meta_files: list[Path] | None = None) -> Iterator[dict[str, Any
 
 def load_all() -> int:
     init_db()
+    bootstrap_metadata()
     return bulk_upsert_docs(iter_records())
 
 

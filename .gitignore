@@ -6,3 +6,4 @@ qdrant_storage/
 !package-lock.json
 !tsconfig.json
 !dados_grupo_estudos/*.json
+.claude

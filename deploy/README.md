@@ -59,7 +59,7 @@ gcloud secrets create ${SECRET_NAME} \
     --data-file=bionic-medley-489719-t5-00bd941e5a30.json
 
 # Acesso da SA Infra ao secret
-INFRA_SA=desafio-rag-21dac6e3afdc@${INFRA_PROJECT}.iam.gserviceaccount.com
+INFRA_SA=desafio-rag@${INFRA_PROJECT}.iam.gserviceaccount.com
 gcloud secrets add-iam-policy-binding ${SECRET_NAME} \
     --member="serviceAccount:${INFRA_SA}" \
     --role="roles/secretmanager.secretAccessor"
@@ -83,7 +83,7 @@ done
 gcloud config set project ${LLM_PROJECT}
 gcloud services enable aiplatform.googleapis.com
 
-LLM_SA=bionic-medley-489719-t5@${LLM_PROJECT}.iam.gserviceaccount.com
+LLM_SA=71991918385-compute@developer.gserviceaccount.com
 gcloud projects add-iam-policy-binding ${LLM_PROJECT} \
     --member="serviceAccount:${LLM_SA}" \
     --role="roles/aiplatform.user"

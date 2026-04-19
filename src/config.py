@@ -27,6 +27,19 @@ GCP_INFRA_PROJECT = os.getenv("GCP_INFRA_PROJECT", "")
 GCP_LLM_PROJECT = os.getenv("GCP_LLM_PROJECT", os.getenv("GOOGLE_CLOUD_PROJECT", ""))
 VERTEX_LLM_CREDENTIALS_PATH = os.getenv("VERTEX_LLM_CREDENTIALS_PATH", "")
 GCS_BUCKET = os.getenv("GCS_BUCKET", "")
+GCS_METADATA_PREFIX = os.getenv("GCS_METADATA_PREFIX", "metadata")
+
+
+def bootstrap_metadata() -> int:
+    """Ensure METADATA_FILES are present locally; fetch from GCS if needed.
+
+    No-op when GCS_BUCKET is unset or all files already exist. Safe to call
+    from CLI entrypoints (e.g. `run_pipeline.py init`).
+    """
+    if not GCS_BUCKET:
+        return 0
+    from .utils.gcs import download_metadata_from_gcs
+    return download_metadata_from_gcs(GCS_BUCKET, METADATA_FILES, GCS_METADATA_PREFIX)
 
 
 @dataclass

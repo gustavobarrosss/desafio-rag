@@ -84,8 +84,8 @@ After=network-online.target
 Wants=network-online.target
 
 [Service]
-Type=forking
-ExecStart=/usr/bin/gcsfuse --foreground=false -o allow_other --implicit-dirs ${GCS_BUCKET} /mnt/gcs
+Type=simple
+ExecStart=/usr/bin/gcsfuse --foreground -o allow_other --implicit-dirs ${GCS_BUCKET} /mnt/gcs
 ExecStop=/bin/fusermount -u /mnt/gcs
 Restart=on-failure
 

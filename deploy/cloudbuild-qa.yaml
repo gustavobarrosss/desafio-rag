@@ -1,0 +1,15 @@
+steps:
+- name: gcr.io/cloud-builders/docker
+  args:
+    - build
+    - -f
+    - docker/Dockerfile.qa
+    - -t
+    - us-central1-docker.pkg.dev/desafio-rag/aneel/qa:latest
+    - .
+images:
+  - us-central1-docker.pkg.dev/desafio-rag/aneel/qa:latest
+options:
+  machineType: E2_HIGHCPU_8
+  logging: CLOUD_LOGGING_ONLY
+timeout: 1800s

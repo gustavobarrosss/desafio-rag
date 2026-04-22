@@ -1,0 +1,275 @@
+# Deploy ANEEL RAG na GCP (24/7)
+
+## Context
+
+Pipeline ANEEL RAG (27K PDFs, ingestão batch + QA on-demand) hoje roda local. LLM já migrada para Vertex AI. Precisamos:
+
+- Hospedar 24/7 na GCP
+- Manter ingestão batch funcionando (download → parse → vision → chunk → embed)
+- Manter QA disponível como serviço sempre on
+- **Restrição:** custo mínimo (projeto de estudo)
+
+Decisões do usuário:
+- Qdrant: Compute Engine VM self-hosted
+- Embedding BGE-M3: GPU (job sob demanda)
+- Escopo: ingestão + QA serving
+- **Dois projetos GCP / dois service accounts (separação de responsabilidades):**
+  - `desafio-rag-21dac6e3afdc.json` → projeto **`desafio-rag`** = INFRA (VM, GCS, Artifact Registry, Cloud Run Jobs, Vertex Custom Job para embed BGE-M3)
+  - `bionic-medley-489719-t5-00bd941e5a30.json` → projeto **`bionic-medley-489719-t5`** = LLM (Vertex AI Gemini para vision OCR + QA generation)
+
+## Arquitetura recomendada (single-VM + jobs sob demanda)
+
+```
+┌────────────────────────────────────────────────────────────┐
+│  Compute Engine VM (e2-medium, sempre on)                  │
+│  - Qdrant container (porta 6333, disco SSD 50GB)           │
+│  - QA FastAPI container (porta 8080, autenticado IAP)      │
+│  - state.sqlite (no mesmo disco)                           │
+│  - PDFs/parsed/chunks → mount GCS via gcsfuse              │
+└────────────────────────────────────────────────────────────┘
+        ▲                              ▲
+        │ ingest writes                │ QA reads
+        │                              │
+┌───────────────┐              ┌──────────────┐
+│ Cloud Run Job │              │ Vertex AI    │
+│ download/     │              │ Custom Job   │
+│ parse/vision/ │              │ (GPU T4)     │
+│ chunk         │              │ embed step   │
+└───────────────┘              └──────────────┘
+        │                              │
+        └──────► GCS bucket ◄──────────┘
+                aneel-rag-data
+                /pdfs /parsed /chunks
+        
+Vertex AI (Gemini 2.5 Flash) ← chamado por vision + QA
+Cloud Scheduler → triggers Cloud Run Jobs (re-ingest periódica opcional)
+```
+
+**Por que single VM para Qdrant+QA:** menor custo (~$25/mês VM + disco), sem cold start no QA, SQLite single-writer OK. Trade-off: SPOF — aceitável para estudo.
+
+## Componentes e custo estimado (mensal, mínimo)
+
+| Componente | SKU | Custo aprox |
+|---|---|---|
+| VM Qdrant+QA | e2-medium (2vCPU, 4GB), 24/7 | ~$25 |
+| Persistent Disk | SSD 50GB | ~$8 |
+| GCS bucket | Standard, ~50GB PDFs+parsed | ~$1 |
+| Cloud Run Jobs | CPU, sob demanda batch | ~$2-5 |
+| Vertex AI Custom Job (GPU) | T4 spot, ~10h embed inicial | ~$3-5 (1x) |
+| Vertex AI Gemini | OCR vision + QA inferência | já estimado $22-75 (1x ingest) + ~$0.01/QA |
+| Cloud Scheduler | trigger jobs | grátis |
+| **Total ongoing** | | **~$35-40/mês** |
+
+## Mudanças no código
+
+### 1. Configuração externalizada
+**File:** [src/config.py](src/config.py)
+
+- Hardcoded `DATA_DIR = ROOT / "data"` → ler de env `DATA_DIR` (default GCS mount path `/mnt/gcs/aneel-rag-data`)
+- `STATE_DB` → env `STATE_DB_PATH` (default `/var/lib/aneel/state.sqlite`)
+- `METADATA_FILES` → ler de GCS (download na inicialização)
+- `QDRANT_URL` → já é env, manter
+- **Novos envs:**
+  - `GCP_INFRA_PROJECT=desafio-rag`
+  - `GCP_LLM_PROJECT=bionic-medley-489719-t5`
+  - `VERTEX_LLM_CREDENTIALS_PATH=/var/secrets/vertex-llm-sa.json` (montado da Secret Manager)
+  - `GCS_BUCKET=aneel-rag-data-desafio-rag`
+
+### 2. Service accounts / secrets (cross-project)
+
+**Dois SAs, dois projetos:**
+
+**SA Infra** (`desafio-rag-21dac6e3afdc@desafio-rag.iam.gserviceaccount.com`)
+- Anexado à VM (Compute Engine), Cloud Run Jobs, Vertex Custom Job (embed)
+- Roles no projeto `desafio-rag`:
+  - `roles/storage.objectAdmin` (bucket `gs://aneel-rag-data`)
+  - `roles/artifactregistry.reader`
+  - `roles/aiplatform.user` (para submeter Custom Job de embed neste projeto)
+  - `roles/logging.logWriter`, `roles/monitoring.metricWriter`
+
+**SA LLM** (`bionic-medley-...@bionic-medley-489719-t5.iam.gserviceaccount.com`)
+- Usado pelo código para chamar Gemini via Vertex AI
+- Role no projeto `bionic-medley-489719-t5`:
+  - `roles/aiplatform.user`
+- **Cross-project access:** SA Infra (que roda na VM) precisa ter permissão de impersonate na SA LLM, OU o JSON da SA LLM é injetado como secret e código carrega explicitamente.
+
+**Padrão recomendado (mais simples, custo zero):**
+- SA LLM JSON armazenado em **Secret Manager** no projeto `desafio-rag` (secret name `vertex-llm-sa-key`)
+- VM/Cloud Run Jobs (rodando como SA Infra) leem o secret via `roles/secretmanager.secretAccessor`
+- Código usa **dois clients distintos:**
+  - Vertex AI client (Gemini) → carrega creds do secret (projeto `bionic-medley`)
+  - GCS/Storage client → usa ADC default (SA Infra, projeto `desafio-rag`)
+
+**Mudança no código:**
+- [src/parse_vision.py](src/parse_vision.py) e [src/qa.py](src/qa.py): inicializar `genai.Client` com creds explícitas vindas de `VERTEX_LLM_CREDENTIALS_PATH` (env) ou de Secret Manager
+- Demais módulos (GCS, Qdrant) usam ADC sem mudança
+
+**Limpeza repo (CRÍTICO):**
+- `git rm` ambos JSONs (commit b21dd28 vazou keys publicamente se repo for público)
+- Adicionar `*.json` ao `.gitignore` na raiz (com exceção pra `package.json`/metadados se houver)
+- **Rotacionar ambas as keys no IAM** após remoção
+- Remover linha `GOOGLE_APPLICATION_CREDENTIALS=...` do `.env` (já está no .gitignore? confirmar)
+
+### 3. Containerização
+
+**Novo:** `Dockerfile.pipeline` (para Cloud Run Jobs: download/parse/vision/chunk)
+- Base `python:3.11-slim`
+- Instala deps via `requirements.txt`
+- Inclui PyMuPDF, pdfplumber, camelot deps (poppler-utils, ghostscript)
+- ENTRYPOINT `python run_pipeline.py`
+
+**Novo:** `Dockerfile.qa` (para QA service na VM)
+- Base mais leve, sem PyMuPDF
+- Carrega BGE-M3 + reranker no startup
+- Expõe FastAPI
+
+**Novo:** `Dockerfile.embed` (para Vertex AI Custom Job c/ GPU)
+- Base `nvidia/cuda:12.1-runtime-ubuntu22.04` + python
+- BGE-M3 com CUDA
+- ENTRYPOINT `python run_pipeline.py embed`
+
+**Atualizar:** [docker-compose.yml](docker-compose.yml) para incluir QA service (rodar localmente para teste)
+
+### 4. QA HTTP service (novo)
+**Novo:** `src/qa_server.py`
+- FastAPI wrapping `src.qa.ask_sync`
+- Endpoint `POST /ask` `{question, top_k}`
+- Healthcheck `GET /health`
+- Reusar `src/qa.py:ask_sync` existente
+
+### 5. State storage
+- SQLite continua no disco da VM (single-writer OK pois batch jobs serializam)
+- Cloud Run Jobs precisam acessar SQLite → opções:
+  - **(a) gcsfuse mount do bucket contendo state.sqlite** (simples, mas SQLite over gcsfuse é arriscado para escritas concorrentes)
+  - **(b) executar Cloud Run Jobs com VPC connector + acesso ao disco da VM via NFS** (complexo)
+  - **(c) Recomendado:** rodar batch jobs **dentro da própria VM** via systemd timers / cron (não usa Cloud Run para batch). Mantém SQLite local. Custo $0 extra. Embedding GPU continua como Vertex Custom Job que escreve direto no Qdrant via VPC interno.
+
+**Decisão:** opção (c). Simplifica arquitetura. Cloud Run só se quiser escala futura.
+
+Arquitetura revisada:
+```
+VM (e2-medium):
+  - Qdrant
+  - QA FastAPI (always-on)
+  - Pipeline batch via systemd timer (download/parse/vision/chunk)
+  - state.sqlite local
+  - gcsfuse mount /mnt/gcs (PDFs/parsed/chunks)
+
+Vertex AI Custom Job (GPU, on-demand):
+  - embed step
+  - Lê chunks de GCS
+  - Escreve no Qdrant via IP interno da VM (VPC)
+```
+
+### 6. Vision concurrency
+**File:** [src/parse_vision_runner.py](src/parse_vision_runner.py)
+- Já usa Vertex AI; verificar quotas no projeto GCP (default 60 RPM Gemini Flash → pedir aumento se ingest precisar)
+
+## Passos de deploy
+
+### Fase 1: Preparação GCP (manual, console/gcloud)
+
+**Projeto INFRA = `desafio-rag`:**
+1. Habilitar APIs: `compute`, `storage`, `artifactregistry`, `aiplatform`, `secretmanager`, `logging`
+2. Confirmar SA `desafio-rag-21dac6e3afdc@desafio-rag.iam.gserviceaccount.com` existe e tem roles listados acima
+3. Criar bucket `gs://aneel-rag-data-desafio-rag` (Standard, us-central1)
+4. Upload metadados JSON (3 files de `dados_grupo_estudos/`) para `gs://.../metadata/`
+5. Criar Artifact Registry repo `aneel` em us-central1
+6. Criar Secret Manager secret `vertex-llm-sa-key` contendo conteúdo do `bionic-medley-...json`
+7. Conceder role `secretmanager.secretAccessor` ao SA Infra para esse secret
+
+**Projeto LLM = `bionic-medley-489719-t5`:**
+1. Habilitar API `aiplatform`
+2. Confirmar SA `bionic-medley-...@bionic-medley-489719-t5.iam.gserviceaccount.com` tem `roles/aiplatform.user`
+3. Confirmar quotas Gemini Flash (60 RPM default) — pedir aumento se ingest full
+
+**Limpeza segurança (antes de qualquer push):**
+- `git rm` os dois JSONs, commit, force push para limpar histórico se repo público (`git filter-repo`)
+- Rotacionar ambas as keys no IAM dos respectivos projetos
+
+### Fase 2: Imagens Docker
+1. Build `Dockerfile.pipeline`, `Dockerfile.qa`, `Dockerfile.embed`
+2. Push para Artifact Registry: `us-central1-docker.pkg.dev/<projeto>/aneel/`
+
+### Fase 3: VM provisioning
+1. Criar VM e2-medium com:
+   - Disco boot 30GB + disco persistente SSD 50GB (mount `/var/lib/aneel`)
+   - Service account anexado
+   - Tags firewall: `qdrant-internal` (porta 6333 só VPC interno)
+   - Startup script: instalar Docker, gcsfuse, mount bucket em `/mnt/gcs`
+2. Subir containers via docker-compose:
+   - Qdrant (existente)
+   - QA service
+3. Configurar IAP (Identity-Aware Proxy) para QA endpoint público autenticado, OU Cloud Run frontend separado
+
+### Fase 4: Ingestão inicial
+1. SSH na VM, rodar:
+   ```
+   python run_pipeline.py init
+   python run_pipeline.py download --limit 100  # smoke test
+   python run_pipeline.py parse
+   python run_pipeline.py vision
+   python run_pipeline.py chunk
+   ```
+2. Embedding: submeter Vertex Custom Job (GPU T4 spot)
+   ```
+   gcloud ai custom-jobs create \
+     --region=us-central1 \
+     --worker-pool-spec=machine-type=n1-standard-4,accelerator-type=NVIDIA_TESLA_T4,accelerator-count=1,container-image-uri=...
+   ```
+3. Validar Qdrant collection populated
+4. Após smoke test OK, rodar full (sem `--limit`)
+
+### Fase 5: Automação opcional
+- Cloud Scheduler → POST endpoint na VM trigger re-ingest (se houver novos PDFs)
+- Cloud Logging para stdout dos containers
+- Uptime check no `/health`
+
+## Arquivos a criar
+
+- `Dockerfile.pipeline` — root
+- `Dockerfile.qa` — root
+- `Dockerfile.embed` — root
+- `src/qa_server.py` — FastAPI QA endpoint
+- `deploy/vm-startup.sh` — startup script da VM
+- `deploy/docker-compose.prod.yml` — compose pra VM (Qdrant + QA)
+- `deploy/embed-job.yaml` — spec Vertex Custom Job
+- `deploy/README.md` — passos de deploy
+
+## Arquivos a modificar
+
+- [src/config.py](src/config.py) — externalizar paths via env
+- [.env.example](.env.example) — adicionar `DATA_DIR`, `STATE_DB_PATH`, `GCS_BUCKET`
+- [.gitignore](.gitignore) — adicionar `*.json` service accounts
+- [docker-compose.yml](docker-compose.yml) — adicionar QA service para teste local
+- [requirements.txt](requirements.txt) — confirmar `fastapi`, `uvicorn`
+
+## Verificação end-to-end
+
+1. **Local com compose prod:**
+   ```
+   docker compose -f deploy/docker-compose.prod.yml up
+   curl localhost:8080/health
+   curl -X POST localhost:8080/ask -d '{"question":"O que diz a REN 1000?"}'
+   ```
+
+2. **VM smoke test:**
+   - SSH VM, `docker ps` → Qdrant + QA up
+   - `curl <IP-INTERNO>:8080/health`
+   - Pipeline batch com `--limit 10` produz docs em Qdrant
+
+3. **Vertex GPU embed job:**
+   - Submeter job, monitorar logs `gcloud ai custom-jobs stream-logs`
+   - Validar count em Qdrant aumenta
+
+4. **QA via IAP/público:**
+   - `curl -H "Authorization: Bearer $(gcloud auth print-identity-token)" https://<dns>/ask`
+   - Resposta com citations
+
+## Riscos e mitigações
+
+- **SQLite + jobs concorrentes:** mitigado rodando batch sequencial via systemd, não paralelo
+- **Service account key vazada (commit b21dd28):** rotacionar imediatamente no IAM
+- **Quota Vertex AI:** monitorar; pedir aumento antes de full ingest
+- **GPU spot preempted:** embed é idempotente (skip docs com `status_embed='ok'`), basta resubmeter job
+- **Custo overrun:** budget alert em $50/mês no projeto

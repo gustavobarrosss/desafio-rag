@@ -24,12 +24,14 @@ def _needs_vision(doc_id: str) -> bool:
 
 
 async def run_vision_batch(limit: int | None = None) -> dict:
-    rows = pending("parse", limit=None)
+    from .state import connection
+    with connection() as conn:
+        rows = conn.execute(
+            "SELECT * FROM docs WHERE status_parse='ok' AND status_download='ok' ORDER BY doc_id"
+        ).fetchall()
     candidates: list[dict] = []
     for row in rows:
         doc_id = row["doc_id"]
-        if row["status_parse"] != "ok":
-            continue
         if _needs_vision(doc_id):
             candidates.append(dict(row))
     if limit:

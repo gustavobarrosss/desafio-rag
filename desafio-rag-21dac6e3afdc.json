@@ -1,0 +1,13 @@
+{
+  "type": "service_account",
+  "project_id": "desafio-rag",
+  "private_key_id": "21dac6e3afdc77491bad0dd27679bc2da1fe0449",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQCv7nXLdb/vN37y\nPV6b1Uo/WszuoncPJasNeHEYvirw0mgHB4Ebpc+VxUgCTh8IsjFo1fe6iswtK5hM\nQYjtKVuQ4I91bmMkqjH99+K3CXY9PovQYTuYuqhx0aKExFchwIxg1tEG3alTI4/e\nFAVi5bKmOYdmJSiQK7Z6+U80KXKtYH0RfgsC1e3Mr1LybrSpSAPtX0Z0qkGZpmyy\nVm/2zaJ3fWoCpHbAH6n0qBpndKSiwzeiRWL/JZ71TsOZ2LSZAXisPTGtWs7PrGS8\ni5BoQvpVNZoi/IlwLZ7rS6YKtac84goF2LHntcw6La2gUzmAw73dpI60FMpo5701\nq7Uq0lKHAgMBAAECggEAAbkCTy6IE/aT+BlDvUJZfvOukjaI3TB4PDmfa1YmdPIh\nwy8hiVQKxa9NH0xK5VHnLtz6OhtL0uLcfHTZpB30MU5XbaMIcJW+DTYgz7wEEzK4\nxWSVniw8RuvyfSxTAKODwjJD7kHqqhVKD83+7bAp7Ko2ouzHfqEtfincysWxIJfV\nB3AzySaihy12ETFIwEFyroM5hoDdcAkJP2rUnKAXhwZUJgSRR3wtT+0t0S8krIe4\nln93BYwNYti7UKLdL5s974J9a4GGX1jOC8X99sN8fy5EgI5pICDoe4IuPNg6rYel\nCw4aUsZxK8gVEeS+ecj47IZze1U+uYzw/KUSXs/UyQKBgQDcrjGZGs5LFXZMPOo3\nt/TXMcLUB66yrByp0mcS5QQD2umJXkUSYJm1bOQMg1lp3l8afUXVbwiSJ8WPtRX2\nK/va3kga2vA/WX19lKJLbZF2m/G40UI8o2CGP3gajE9YW+21ywO3jg0NfDHDpadN\nbYXfqP1eUFvjsrUn/KEFE+NRtQKBgQDMFstbt0QS2grMbE1HIGQZfdC6H2+PS0cH\nMyuETvow5b8uqBODr4+lgJIS0smBwr8hTN6ZBKRiW51NUG9UvblQjHkWmyIKhrjh\n66iahNTXoWMx+NbAIKuiGOcxgiFNtJ4mi8FQ5Iqzxe8ZUM3v7QUn2CJ0HH8bV6QP\nyOu/QkNoywKBgQDL5QZed63zIblTZ1Tgdk76JTflv9NhsjQplAU4J/E1vqXYDgmz\nmR1ry1hJV3LdpmAokWZcdWJt5+FZje7krG7fIlFsvq0LWxvfU90/49RqylrkcDPK\n4wjkAPBvVwRYl1diiFi+17inpQA1zHBv0anHpNO0uHquPweyEnCTyHRXoQKBgQCX\ngrCTtRkfWam8mwY/sGc/mWy0UBQU8BCZ4r4CqlMIq/bjXzmlgFcGyc0nlj6sS3Ry\n90sllBGpR1QfCoCsC3EgwDhAtQhvghaM+dMga05Lim9GsPJUjax9WTmBQpcQxe7G\ntOfd8tyZm27mf1tzK6WxL75cLq+aD9UnNsT1Ju8+QwKBgER3TXQ97xz1PvVj90R1\nOoiv0Li9jKvtuUCPQ/pO5TtPCwasV2RSSbQSRArrtVftaUewR/i0OZp+mmjgQz6N\nmaJZxCCe8GMSjI/OkqZweH2qDlkep9qVq9wMFKFsH5u5El0IzDwEWDfkxoVWBGdE\nJHiGg+4d8ug0lav1MoGS1G+g\n-----END PRIVATE KEY-----\n",
+  "client_email": "desafio-rag@desafio-rag.iam.gserviceaccount.com",
+  "client_id": "103202340444624233097",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/desafio-rag%40desafio-rag.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}

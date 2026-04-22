@@ -9,18 +9,37 @@ from dotenv import load_dotenv
 load_dotenv()
 
 ROOT = Path(__file__).resolve().parent.parent
-DATA_DIR = ROOT / "data"
-PDF_DIR = DATA_DIR / "pdfs"
-PARSED_DIR = DATA_DIR / "parsed"
-CHUNKS_DIR = DATA_DIR / "chunks"
-EVAL_DIR = DATA_DIR / "eval"
-STATE_DB = DATA_DIR / "state.sqlite"
+DATA_DIR = Path(os.getenv("DATA_DIR", str(ROOT / "data")))
+PDF_DIR = Path(os.getenv("PDF_DIR", str(DATA_DIR / "pdfs")))
+PARSED_DIR = Path(os.getenv("PARSED_DIR", str(DATA_DIR / "parsed")))
+CHUNKS_DIR = Path(os.getenv("CHUNKS_DIR", str(DATA_DIR / "chunks")))
+EVAL_DIR = Path(os.getenv("EVAL_DIR", str(DATA_DIR / "eval")))
+STATE_DB = Path(os.getenv("STATE_DB_PATH", str(DATA_DIR / "state.sqlite")))
 
+_METADATA_DIR = Path(os.getenv("METADATA_DIR", str(ROOT / "dados_grupo_estudos")))
 METADATA_FILES = [
-    ROOT / "dados_grupo_estudos" / "biblioteca_aneel_gov_br_legislacao_2016_metadados.json",
-    ROOT / "dados_grupo_estudos" / "biblioteca_aneel_gov_br_legislacao_2021_metadados.json",
-    ROOT / "dados_grupo_estudos" / "biblioteca_aneel_gov_br_legislacao_2022_metadados.json",
+    _METADATA_DIR / "biblioteca_aneel_gov_br_legislacao_2016_metadados.json",
+    _METADATA_DIR / "biblioteca_aneel_gov_br_legislacao_2021_metadados.json",
+    _METADATA_DIR / "biblioteca_aneel_gov_br_legislacao_2022_metadados.json",
 ]
+
+GCP_INFRA_PROJECT = os.getenv("GCP_INFRA_PROJECT", "")
+GCP_LLM_PROJECT = os.getenv("GCP_LLM_PROJECT", os.getenv("GOOGLE_CLOUD_PROJECT", ""))
+VERTEX_LLM_CREDENTIALS_PATH = os.getenv("VERTEX_LLM_CREDENTIALS_PATH", "")
+GCS_BUCKET = os.getenv("GCS_BUCKET", "")
+GCS_METADATA_PREFIX = os.getenv("GCS_METADATA_PREFIX", "metadata")
+
+
+def bootstrap_metadata() -> int:
+    """Ensure METADATA_FILES are present locally; fetch from GCS if needed.
+
+    No-op when GCS_BUCKET is unset or all files already exist. Safe to call
+    from CLI entrypoints (e.g. `run_pipeline.py init`).
+    """
+    if not GCS_BUCKET:
+        return 0
+    from .utils.gcs import download_metadata_from_gcs
+    return download_metadata_from_gcs(GCS_BUCKET, METADATA_FILES, GCS_METADATA_PREFIX)
 
 
 @dataclass
@@ -46,7 +65,8 @@ class RouterConfig:
 class VisionConfig:
     model: str = field(default_factory=lambda: os.getenv("VERTEXAI_MODEL", "gemini-2.5-flash"))
     fallback_model: str = field(default_factory=lambda: os.getenv("VERTEXAI_FALLBACK_MODEL", "gemini-2.5-flash-lite"))
-    project: str = field(default_factory=lambda: os.getenv("GOOGLE_CLOUD_PROJECT", ""))
+    project: str = field(default_factory=lambda: os.getenv("GCP_LLM_PROJECT", os.getenv("GOOGLE_CLOUD_PROJECT", "")))
+    credentials_path: str = field(default_factory=lambda: os.getenv("VERTEX_LLM_CREDENTIALS_PATH", os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "")))
     location: str = field(default_factory=lambda: os.getenv("GOOGLE_CLOUD_LOCATION", "us-central1"))
     rpm: int = field(default_factory=lambda: int(os.getenv("VERTEXAI_RPM", "60")))
     rpd: int = field(default_factory=lambda: int(os.getenv("VERTEXAI_RPD", "1000")))

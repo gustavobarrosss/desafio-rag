@@ -101,7 +101,7 @@ def annotate_spans(page: fitz.Page) -> list[list[Span]]:
             for span in line.get("spans", []):
                 bbox = tuple(span["bbox"])
                 text = span.get("text", "")
-                revoked_font = bool(span.get("flags", 0) & 16)  # font-flagged strikeout (rare)
+                revoked_font = False  # PyMuPDF flag 16 = bold, not strikethrough
                 revoked_draw = any(_line_strikes_span(bbox, l) for l in lines)
                 revoked_annot = any(_rect_overlaps_span(bbox, r) for r in annot_rects)
                 spans.append(Span(
@@ -129,7 +129,7 @@ def spans_to_markdown(lines_spans: Iterable[list[Span]]) -> str:
             if not buffer:
                 return
             text = "".join(buffer)
-            if current_revoked and text.strip():
+            if current_revoked and len(text.strip()) >= 3:
                 pieces.append(f"~~{text}~~")
             else:
                 pieces.append(text)

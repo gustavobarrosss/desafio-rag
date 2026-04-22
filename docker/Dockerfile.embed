@@ -1,0 +1,36 @@
+# Embedding image: BGE-M3 with CUDA for Vertex AI Custom Job (T4 spot).
+# Reads chunks from GCS (mounted or client), writes vectors to Qdrant over
+# the VPC internal IP of the VM.
+FROM nvidia/cuda:12.1.1-runtime-ubuntu22.04
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    DEBIAN_FRONTEND=noninteractive \
+    HF_HOME=/models
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        python3.11 \
+        python3.11-dev \
+        python3-pip \
+        libgomp1 \
+        curl \
+        ca-certificates \
+    && ln -sf /usr/bin/python3.11 /usr/bin/python \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY requirements.txt ./
+RUN pip install -r requirements.txt
+
+COPY src ./src
+COPY run_pipeline.py ./
+
+ENV DATA_DIR=/mnt/gcs/aneel-rag-data \
+    STATE_DB_PATH=/var/lib/aneel/state.sqlite \
+    EMBED_DEVICE=cuda
+
+ENTRYPOINT ["python", "run_pipeline.py"]
+CMD ["embed"]

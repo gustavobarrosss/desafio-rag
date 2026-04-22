@@ -6,7 +6,6 @@ import logging
 from dataclasses import dataclass
 from typing import Any
 
-from google import genai
 from google.genai.types import GenerateContentConfig, ThinkingConfig
 from tenacity import AsyncRetrying, stop_after_attempt, wait_exponential_jitter
 
@@ -14,6 +13,7 @@ from .chunker import _clean_text
 from .config import SETTINGS
 from .retriever import RetrievedChunk, search
 from .utils.rate_limiter import Budget, RateLimiter
+from .utils.vertex_client import build_vertex_client
 
 log = logging.getLogger(__name__)
 
@@ -61,7 +61,7 @@ class QAClient:
             raise RuntimeError("GOOGLE_CLOUD_PROJECT not set")
         self.cfg = cfg
         self.limiter = RateLimiter(Budget(rpm=cfg.rpm, rpd=cfg.rpd))
-        self._client = genai.Client(vertexai=True, project=cfg.project, location=cfg.location)
+        self._client = build_vertex_client(cfg.project, cfg.location, cfg.credentials_path)
         self._active_model = cfg.model
 
     async def close(self) -> None:

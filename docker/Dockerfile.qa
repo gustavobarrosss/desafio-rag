@@ -1,0 +1,33 @@
+# QA service image: FastAPI + retriever (BGE-M3 dense/sparse) + reranker.
+# Runs on the VM 24/7. CPU-only; inference of BGE is light at top-k ~40.
+FROM python:3.11-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    HF_HOME=/models
+
+# libgomp is required by torch (used by FlagEmbedding)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        libgomp1 \
+        curl \
+        ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY requirements.txt ./
+RUN pip install -r requirements.txt
+
+COPY src ./src
+
+ENV EMBED_DEVICE=cpu \
+    PORT=8080
+
+EXPOSE 8080
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
+    CMD curl -fsS http://localhost:${PORT}/health || exit 1
+
+CMD ["sh", "-c", "uvicorn src.qa_server:app --host 0.0.0.0 --port ${PORT}"]

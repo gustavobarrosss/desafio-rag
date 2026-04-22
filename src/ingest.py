@@ -109,11 +109,28 @@ def ingest_pending(limit: int | None = None) -> dict:
             ok += 1
         buffer.clear()
 
+    client = get_client()
+    ensure_collection(client)
+
+    def _delete_doc_vectors(doc_id: str) -> None:
+        try:
+            client.delete(
+                SETTINGS.qdrant.collection,
+                points_selector=models.FilterSelector(
+                    filter=models.Filter(must=[
+                        models.FieldCondition(key="doc_id", match=models.MatchValue(value=doc_id))
+                    ])
+                ),
+            )
+        except Exception as exc:
+            log.debug("delete old vectors for %s: %s", doc_id, exc)
+
     pending_count = 0
     for row in tqdm(rows, desc="embed"):
         doc_id = row["doc_id"]
         try:
             chunks = load_chunks(doc_id)
+            _delete_doc_vectors(doc_id)
             if not chunks:
                 mark_status(doc_id, "embed", "ok")
                 ok += 1

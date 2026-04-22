@@ -10,6 +10,7 @@ from google import genai
 from google.genai.types import GenerateContentConfig, ThinkingConfig
 from tenacity import AsyncRetrying, stop_after_attempt, wait_exponential_jitter
 
+from .chunker import _clean_text
 from .config import SETTINGS
 from .retriever import RetrievedChunk, search
 from .utils.rate_limiter import Budget, RateLimiter
@@ -21,10 +22,13 @@ SYSTEM_PROMPT = (
     "Você é um assistente jurídico especialista em regulação do setor elétrico brasileiro (ANEEL). "
     "Responda estritamente com base nos TRECHOS fornecidos. Siga estas regras:\n"
     "1) Cite as fontes usando [doc_id | art X] ou [doc_id | p. N] ao final de cada afirmação.\n"
-    "2) Se um trecho contém texto entre ~~ ... ~~, esse texto está REVOGADO — nunca o trate como norma vigente, "
-    "e se precisar mencioná-lo deixe explícito que foi revogado.\n"
-    "3) Se os trechos não trazem resposta suficiente, diga claramente que a informação não consta no contexto.\n"
-    "4) Responda em português do Brasil, de forma objetiva e técnica."
+    "2) Se um trecho contém texto entre ~~ ... ~~, esse texto está REVOGADO — nunca o trate como norma vigente; "
+    "se precisar mencioná-lo, deixe explícito que foi revogado.\n"
+    "3) Use todo conteúdo relevante dos trechos para compor a resposta, mesmo que a redação seja indireta ou o "
+    "artigo não cite explicitamente o tema da pergunta. Diga 'não consta no contexto' SOMENTE quando nenhum "
+    "trecho contiver informação relacionada ao tema — não use esse recurso por falta de citação direta.\n"
+    "4) Desconsidere linhas de tabela malformadas (ex: | | | |) e foque no texto dos artigos e parágrafos.\n"
+    "5) Responda em português do Brasil, de forma objetiva e técnica."
 )
 
 
@@ -46,7 +50,7 @@ def _format_chunks(chunks: list[RetrievedChunk]) -> str:
             f"situacao_doc={payload.get('situacao_doc')} | art={c.article_ref} | "
             f"has_revoked={payload.get('has_revoked')} | pg {payload.get('page_start')}-{payload.get('page_end')}"
         )
-        parts.append(f"{header}\n{c.text}")
+        parts.append(f"{header}\n{_clean_text(c.text)}")
     return "\n\n---\n\n".join(parts)
 
 

@@ -27,6 +27,17 @@ _HEADING_PATTERNS = [
 
 _REVOKED_MARKER = re.compile(r"~~([^~]+)~~")
 
+_EMPTY_TABLE_ROW = re.compile(r"^\s*(\|\s*)+\s*$", re.MULTILINE)
+_EMPTY_STRIKE = re.compile(r"~~\s*~~")
+_MULTI_BLANK = re.compile(r"\n{3,}")
+
+
+def _clean_text(text: str) -> str:
+    text = _EMPTY_TABLE_ROW.sub("", text)
+    text = _EMPTY_STRIKE.sub("", text)
+    text = _MULTI_BLANK.sub("\n\n", text)
+    return text.strip()
+
 
 @dataclass
 class Chunk:
@@ -190,14 +201,14 @@ def chunk_doc(doc_id: str) -> list[Chunk]:
             pieces = [text]
         for piece in pieces:
             if _approx_tokens(piece) < cfg.min_tokens and out and not _has_table(piece):
-                out[-1].text = out[-1].text + "\n\n" + piece
+                out[-1].text = out[-1].text + "\n\n" + _clean_text(piece)
                 out[-1].page_end = b["page_end"]
                 out[-1].has_revoked = out[-1].has_revoked or _has_revoked(piece)
                 continue
             chunk = Chunk(
                 chunk_id=_chunk_id(doc_id, idx, piece),
                 doc_id=doc_id,
-                text=piece,
+                text=_clean_text(piece),
                 article_ref=b.get("article_ref"),
                 has_table=_has_table(piece),
                 has_revoked=_has_revoked(piece),

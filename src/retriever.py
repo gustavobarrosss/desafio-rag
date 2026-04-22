@@ -14,6 +14,8 @@ from .ingest import get_client
 
 log = logging.getLogger(__name__)
 
+_EMENTA_PENALTY = 0.85  # demotion factor for page_start == 0 (ementa) chunks
+
 
 @dataclass
 class RetrievedChunk:
@@ -108,6 +110,10 @@ def search(query: str, *, filters: dict[str, Any] | None = None, top_k: int | No
     scores = _reranker().compute_score(pairs, normalize=True)
     if isinstance(scores, float):
         scores = [scores]
+    scores = [
+        s * (_EMENTA_PENALTY if candidates[i].get("page_start", 1) == 0 else 1.0)
+        for i, s in enumerate(scores)
+    ]
     order = sorted(range(len(candidates)), key=lambda i: scores[i], reverse=True)[:top_k]
 
     return [

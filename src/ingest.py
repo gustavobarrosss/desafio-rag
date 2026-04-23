@@ -29,7 +29,7 @@ _PAYLOAD_INDEX_FIELDS = [
 
 
 def get_client() -> QdrantClient:
-    return QdrantClient(url=SETTINGS.qdrant.url, prefer_grpc=False)
+    return QdrantClient(url=SETTINGS.qdrant.url, prefer_grpc=False, timeout=60)
 
 
 def ensure_collection(client: QdrantClient | None = None) -> None:

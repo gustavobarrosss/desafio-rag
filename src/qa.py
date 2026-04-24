@@ -130,11 +130,19 @@ class QAClient:
         return Answer(question=question, answer=text, citations=citations, model=self._active_model)
 
 
+import time
+
 async def ask(question: str, *, filters: dict[str, Any] | None = None, top_k: int | None = None) -> Answer:
+    t0 = time.perf_counter()
     chunks = search(question, filters=filters, top_k=top_k)
+    t1 = time.perf_counter()
+    log.warning("[timing] retriever=%.2fs (chunks=%d)", t1 - t0, len(chunks))
     client = QAClient()
     try:
-        return await client.answer(question, chunks)
+        ans = await client.answer(question, chunks)
+        t2 = time.perf_counter()
+        log.warning("[timing] llm=%.2fs total=%.2fs", t2 - t1, t2 - t0)
+        return ans
     finally:
         await client.close()
 

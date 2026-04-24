@@ -1,7 +1,12 @@
-"""Hybrid retriever: dense + sparse + identifier lookup, fused via RRF, reranked with BGE-m3."""
+"""Hybrid retriever: dense + sparse + identifier lookup, fused via RRF, reranked.
+
+Reranker:
+- If COHERE_API_KEY is set, uses Cohere Rerank API (multilingual v3) — fast, no GPU.
+- Otherwise falls back to BGE-reranker-v2-m3 on local CPU/GPU (slow on CPU)."""
 from __future__ import annotations
 
 import logging
+import os
 import re
 from dataclasses import dataclass
 from functools import lru_cache
@@ -20,6 +25,9 @@ _IDENT_NUM_RE = re.compile(r"\b(\d{3,5})\b")
 _YEAR_RE = re.compile(r"\b(201[0-9]|202[0-5])\b")
 _MAX_IDENT_DOCS = 40
 
+_COHERE_KEY = os.getenv("COHERE_API_KEY", "").strip()
+_COHERE_MODEL = os.getenv("COHERE_RERANK_MODEL", "rerank-multilingual-v3.0")
+
 
 @dataclass
 class RetrievedChunk:
@@ -35,11 +43,36 @@ class RetrievedChunk:
 
 
 @lru_cache(maxsize=1)
-def _reranker():
+def _bge_reranker():
     from FlagEmbedding import FlagReranker
     cfg = SETTINGS.retriever
-    log.info("loading reranker %s", cfg.rerank_model)
+    log.info("loading BGE reranker %s", cfg.rerank_model)
     return FlagReranker(cfg.rerank_model, use_fp16=SETTINGS.embed.use_fp16, device=SETTINGS.embed.device)
+
+
+@lru_cache(maxsize=1)
+def _cohere_client():
+    import cohere
+    log.info("using Cohere rerank model=%s", _COHERE_MODEL)
+    return cohere.Client(_COHERE_KEY)
+
+
+def _rerank_scores(query: str, texts: list[str]) -> list[float]:
+    """Return one relevance score per input text, normalized to [0, 1]."""
+    if not texts:
+        return []
+    if _COHERE_KEY:
+        co = _cohere_client()
+        res = co.rerank(model=_COHERE_MODEL, query=query, documents=texts, top_n=len(texts))
+        scores = [0.0] * len(texts)
+        for r in res.results:
+            scores[r.index] = float(r.relevance_score)
+        return scores
+    pairs = [(query, t) for t in texts]
+    raw = _bge_reranker().compute_score(pairs, normalize=True)
+    if isinstance(raw, float):
+        raw = [raw]
+    return [float(s) for s in raw]
 
 
 def _build_filter(filters: dict[str, Any] | None) -> models.Filter | None:
@@ -115,12 +148,16 @@ def _rrf_fuse(ranks: list[list[str]], k: int) -> dict[str, float]:
 
 
 def search(query: str, *, filters: dict[str, Any] | None = None, top_k: int | None = None) -> list[RetrievedChunk]:
+    import time
     cfg = SETTINGS.retriever
     top_k = top_k or cfg.final_top_k
     client: QdrantClient = get_client()
     qf = _build_filter(filters)
 
+    t0 = time.perf_counter()
     dense_vec, sparse_vec = embed_query(query)
+    t1 = time.perf_counter()
+    log.warning("[timing] embed_query=%.2fs", t1 - t0)
     sparse_q = models.SparseVector(
         indices=list(sparse_vec.keys()),
         values=[sparse_vec[i] for i in sparse_vec],
@@ -197,13 +234,16 @@ def search(query: str, *, filters: dict[str, Any] | None = None, top_k: int | No
         (h.payload.get("chunk_id") or str(h.id)) for h in ident_hits
     } if ident_hits else set()
 
-    pairs = [
-        (query, f"[arquivo: {c.get('arquivo','')}]\n{c.get('text','')}")
+    t2 = time.perf_counter()
+    log.warning("[timing] qdrant+ident=%.2fs (candidates=%d)", t2 - t1, len(candidates))
+
+    rerank_texts = [
+        f"[arquivo: {c.get('arquivo','')}]\n{c.get('text','')}"
         for c in candidates
     ]
-    scores = _reranker().compute_score(pairs, normalize=True)
-    if isinstance(scores, float):
-        scores = [scores]
+    scores = _rerank_scores(query, rerank_texts)
+    t3 = time.perf_counter()
+    log.warning("[timing] rerank=%.2fs (pairs=%d)", t3 - t2, len(rerank_texts))
     scores = [
         s
         * (_EMENTA_PENALTY if candidates[i].get("page_start", 1) == 0 else 1.0)

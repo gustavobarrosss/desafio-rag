@@ -1,0 +1,45 @@
+# Production compose ? runs on the Compute Engine VM.
+# - Images pulled from Artifact Registry (see deploy/README.md)
+# - Qdrant storage and state.sqlite persisted on the SSD mounted at /var/lib/aneel
+# - GCS bucket mounted at /mnt/gcs via gcsfuse (see vm-startup.sh)
+# - Vertex LLM SA key written to /var/secrets by the startup script
+
+services:
+  qdrant:
+    image: qdrant/qdrant:v1.12.4
+    container_name: aneel-qdrant
+    restart: unless-stopped
+    # Only reachable inside the VPC (firewall rule), plus loopback for QA.
+    ports:
+      - "127.0.0.1:6333:6333"
+      - "127.0.0.1:6334:6334"
+    volumes:
+      - /var/lib/aneel/qdrant:/qdrant/storage
+    environment:
+      - QDRANT__SERVICE__GRPC_PORT=6334
+
+  qa:
+    image: ${ARTIFACT_REGISTRY}/qa:${IMAGE_TAG:-latest}
+    container_name: aneel-qa
+    restart: unless-stopped
+    depends_on:
+      - qdrant
+    ports:
+      # Exposed to IAP / load balancer; do NOT bind to 0.0.0.0 publicly.
+      - "8080:8080"
+    env_file:
+      - /etc/aneel/qa.env
+    environment:
+      - QDRANT_URL=http://qdrant:6333
+      - EMBED_DEVICE=cpu
+      - PORT=8080
+      - VERTEX_LLM_CREDENTIALS_PATH=/var/secrets/vertex-llm-sa.json
+      - DATA_DIR=/mnt/gcs/aneel-rag-data
+      - STATE_DB_PATH=/var/lib/aneel/state.sqlite
+      - HF_HUB_DISABLE_XET=1
+      - HF_HUB_ENABLE_HF_TRANSFER=0
+    volumes:
+      - /var/secrets:/var/secrets:ro
+      - /mnt/gcs:/mnt/gcs:ro
+      - /var/lib/aneel:/var/lib/aneel
+      - /var/lib/aneel/hf_cache:/models

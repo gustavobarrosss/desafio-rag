@@ -57,17 +57,44 @@ def _cohere_client():
     return cohere.Client(_COHERE_KEY)
 
 
-def _rerank_scores(query: str, texts: list[str]) -> list[float]:
-    """Return one relevance score per input text, normalized to [0, 1]."""
-    if not texts:
-        return []
-    if _COHERE_KEY:
+def _cohere_rerank_with_retry(query: str, texts: list[str]) -> list[float]:
+    """Call Cohere rerank with retry/backoff on rate-limit (429) and transient errors."""
+    from tenacity import (
+        retry,
+        retry_if_exception_type,
+        stop_after_attempt,
+        wait_exponential_jitter,
+    )
+
+    try:
+        import cohere.errors as _cohere_errors
+        _retry_exc = (_cohere_errors.TooManyRequestsError, _cohere_errors.InternalServerError)
+    except Exception:
+        _retry_exc = (Exception,)
+
+    @retry(
+        retry=retry_if_exception_type(_retry_exc),
+        stop=stop_after_attempt(5),
+        wait=wait_exponential_jitter(initial=2, max=30),
+        reraise=True,
+    )
+    def _call() -> list[float]:
         co = _cohere_client()
         res = co.rerank(model=_COHERE_MODEL, query=query, documents=texts, top_n=len(texts))
         scores = [0.0] * len(texts)
         for r in res.results:
             scores[r.index] = float(r.relevance_score)
         return scores
+
+    return _call()
+
+
+def _rerank_scores(query: str, texts: list[str]) -> list[float]:
+    """Return one relevance score per input text, normalized to [0, 1]."""
+    if not texts:
+        return []
+    if _COHERE_KEY:
+        return _cohere_rerank_with_retry(query, texts)
     pairs = [(query, t) for t in texts]
     raw = _bge_reranker().compute_score(pairs, normalize=True)
     if isinstance(raw, float):

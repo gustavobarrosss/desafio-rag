@@ -1,7 +1,7 @@
 """
-Hard benchmark: 12 queries across 6 difficulty categories.
+Hard benchmark round 2: 12 NEW queries, same 6 categories.
 
-Usage: python deploy/bench_hard.py
+Usage: python -u deploy/bench_hard2.py > bench_results2.txt
 """
 from __future__ import annotations
 
@@ -15,75 +15,75 @@ import urllib.request
 URL = "http://34.71.134.25:8080/ask"
 USER = "desafio-rag"
 PASS = "queria_uma_bolsa_rs"
-TIMEOUT = 180  # per-query timeout seconds
-RATE_SLEEP = 6.5  # seconds between queries — Cohere Trial limit 10 RPM
+TIMEOUT = 180
+RATE_SLEEP = 6.5  # Cohere Trial rate limit 10 RPM
 
 BENCH = [
-    # ── TABELA: valores numéricos precisos ────────────────────────────────
+    # ── TABELA: valor numérico preciso ──────────────────────────────────
     {
         "category": "tabela",
-        "label": "bandeira vermelha P2 2016 — valor exato",
-        "question": "Qual foi o valor exato do adicional da bandeira tarifária vermelha patamar 2 estabelecido para 2016? Responda o valor em R$/MWh.",
+        "label": "bandeira amarela 2016 valor",
+        "question": "Qual o valor exato do adicional da bandeira tarifária amarela estabelecido em 2016? Responda em R$/MWh.",
     },
     {
         "category": "tabela",
-        "label": "prazo máximo débitos religação",
-        "question": "Segundo a ANEEL, qual é o prazo máximo em meses durante o qual um débito pretérito pode ser cobrado para condicionar a religação de energia?",
+        "label": "limite micro vs mini GD",
+        "question": "Quais os limites de potência em kW que separam microgeração de minigeração distribuída na REN 482/2012 após alterações?",
     },
-    # ── REVOGADAS: detecção e descrição do conteúdo revogado ──────────────
+    # ── REVOGADAS: detalhamento de conteúdo revogado ────────────────────
     {
         "category": "revogada",
-        "label": "Art. 4º-A REN 482/2012 (revogado)",
-        "question": "O que dispunha o art. 4º-A da REN 482/2012 antes de ser revogado? A norma ainda está em vigor?",
+        "label": "art. 121 REN 414 (substituída)",
+        "question": "O que dispunha o art. 121 da REN 414/2010? Essa norma ainda vale?",
     },
     {
         "category": "revogada",
-        "label": "REN 414/2010 substituída",
-        "question": "Quais resoluções normativas da ANEEL foram expressamente revogadas pela REN 1000/2021?",
+        "label": "REN 482 alterada pela 687",
+        "question": "Como a REN 687/2015 modificou a REN 482/2012 em relação ao Sistema de Compensação de Energia?",
     },
-    # ── EMENTA: pergunta responsável apenas pela ementa/sumário ───────────
+    # ── EMENTA: resposta só no sumário ──────────────────────────────────
     {
         "category": "ementa",
-        "label": "objeto Despacho 1442/2021",
-        "question": "Em no máximo duas frases, qual é o objeto do Despacho ANEEL n. 1442 de 2021?",
+        "label": "Resolução Autorizativa 2718/2021",
+        "question": "Em duas frases, qual o objeto da Resolução Autorizativa ANEEL n. 2718 de 2021?",
     },
     {
         "category": "ementa",
-        "label": "sumário REN 928/2021",
-        "question": "Sobre o que versa a Resolução Normativa ANEEL n. 928 de 2021? Responda em uma frase.",
+        "label": "Portaria 3935/2016",
+        "question": "Sobre o que versa a Portaria ANEEL n. 3935 de 2016?",
     },
-    # ── PDFs com OCR / estrutura complexa ─────────────────────────────────
+    # ── SCAN/OCR: docs potencialmente escaneados ─────────────────────────
     {
         "category": "scan_ocr",
-        "label": "Nota Técnica 222/2021-SGT recomendação",
-        "question": "O que recomenda a Nota Técnica nº 222/2021-SGT/ANEEL?",
+        "label": "Nota Técnica 282/2021",
+        "question": "O que analisa a Nota Técnica n. 282/2021-SGT/ANEEL?",
     },
     {
         "category": "scan_ocr",
-        "label": "voto sobre inadimplência",
-        "question": "Em processos envolvendo inadimplência e religação de consumidor, qual é o entendimento consolidado da Superintendência da ANEEL sobre a exigência de débitos pretéritos?",
+        "label": "voto conduto GD 2022",
+        "question": "Qual a análise técnica consolidada dos votos condutores da ANEEL em 2022 sobre adequação regulatória de geração distribuída?",
     },
-    # ── CROSS-REFERÊNCIA entre documentos ─────────────────────────────────
+    # ── CROSS-REFERÊNCIA ────────────────────────────────────────────────
     {
         "category": "cross_ref",
-        "label": "art. 128 REN 414 vs art. 356 REN 1000",
-        "question": "Como o art. 128 da REN 414/2010 se relaciona com o art. 356 da REN 1000/2021 em termos de suspensão de fornecimento por inadimplência?",
+        "label": "Lei 13.360/2016 × REN 482",
+        "question": "Como a Lei nº 13.360/2016 influenciou a REN 482/2012 em relação ao limite de potência hidráulica para minigeração distribuída?",
     },
     {
         "category": "cross_ref",
-        "label": "Lei 14.300/2022 e REN 482/2012",
-        "question": "Como a Lei nº 14.300/2022 impactou a REN 482/2012 sobre geração distribuída?",
+        "label": "REN 1000 × Módulo 3 PRODIST",
+        "question": "Como a REN 1000/2021 se relaciona com o Módulo 3 dos Procedimentos de Distribuição (PRODIST)?",
     },
-    # ── INTERPRETAÇÃO jurídica complexa ───────────────────────────────────
+    # ── INTERPRETAÇÃO ───────────────────────────────────────────────────
     {
         "category": "interpret",
-        "label": "débito pretérito não-contemporâneo",
-        "question": "Pode a distribuidora suspender o fornecimento de energia em razão de débito pretérito não contemporâneo à interrupção? Justifique com base na regulação da ANEEL.",
+        "label": "recusa adesão SCEE",
+        "question": "Em quais situações a distribuidora pode recusar a adesão de um consumidor ao Sistema de Compensação de Energia Elétrica (SCEE)?",
     },
     {
         "category": "interpret",
-        "label": "compensação créditos entre distribuidoras",
-        "question": "A ANEEL permite a compensação de créditos de geração distribuída entre distribuidoras diferentes? Por que?",
+        "label": "bandeira vermelha × amarela",
+        "question": "A aplicação da bandeira tarifária vermelha patamar 2 substitui a cobrança da bandeira amarela no mesmo mês? Explique.",
     },
 ]
 
@@ -114,7 +114,7 @@ def ask(question: str) -> tuple[float, dict]:
 def main() -> int:
     total = len(BENCH)
     by_cat: dict[str, list[tuple[str, float, bool]]] = {}
-    print(f"Running {total} hard queries against {URL}\n")
+    print(f"Running {total} hard queries round 2 against {URL}\n")
     total_t0 = time.perf_counter()
 
     for i, item in enumerate(BENCH, 1):
@@ -135,8 +135,6 @@ def main() -> int:
         answer = (d.get("answer") or "").strip()
         cits = d.get("citations") or []
         al = answer.lower()
-        # Reject only if the answer is *purely* a refusal: starts with "não consta"
-        # AND has no substantial follow-up (<300 chars of prose after).
         refusal_prefix = al.startswith("não consta") or al.startswith("nao consta")
         substantive = len(answer) > 300
         rejected = refusal_prefix and not substantive

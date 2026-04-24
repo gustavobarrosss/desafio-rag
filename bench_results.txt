@@ -1,0 +1,86 @@
+Running 12 hard queries against http://34.71.134.25:8080/ask
+
+[ 1/12] [tabela] bandeira vermelha P2 2016 — valor exato
+   Q: Qual foi o valor exato do adicional da bandeira tarifária vermelha patamar 2 estabelecido para 2016? Responda o valor em R$/MWh.
+   A (6.65s, PASS): O valor do adicional da bandeira tarifária vermelha patamar 2 estabelecido para 2016 foi de 45,00 R$/MWh [reh20162016ti__deceed6a46 | art 2º], [nreh20162016__acc8efa24e | p. 0-13], [aprt20164009_1__21a903271d | p. 2], [adsp20161402_1__65d86128b1 | p. 2].
+   top citation: reh20162016ti__deceed6a46 score=0.990 situacao=NÃO CONSTA REVOGAÇÃO EXPRESSA art=Art. 2º A partir de 1º de fevereiro de 2
+
+[ 2/12] [tabela] prazo máximo débitos religação
+   Q: Segundo a ANEEL, qual é o prazo máximo em meses durante o qual um débito pretérito pode ser cobrado para condicionar a religação de energia?
+   A (5.74s, PASS): A ANEEL estabelece que o prazo máximo de cobrança de faturas em atraso para condicionar a religação de energia é de 60 meses [1 | art 128, § 2º], [3 | 51], [4 | 12], [6 | art 128], [8 | art 128, § 2º]. A distribuidora não pode condicionar a religação ao pagame...
+   top citation: adsp20211442_1__c50a426790 score=0.996 situacao=NÃO CONSTA REVOGAÇÃO EXPRESSA art=Art. 128. Quando houver débitos decorren
+
+[ 3/12] [revogada] Art. 4º-A REN 482/2012 (revogado)
+   Q: O que dispunha o art. 4º-A da REN 482/2012 antes de ser revogado? A norma ainda está em vigor?
+   A (10.54s, PASS): O art. 4º-A da Resolução Normativa nº 482, de 17 de abril de 2012, antes de ser revogado, vedava a divisão de central geradora em unidades de menor porte para se enquadrar nos limites de potência para microgeração ou minigeração distribuída [doc_id=ren20211000...
+   top citation: ren20211000__e5fb7e538d score=0.987 situacao=NÃO CONSTA REVOGAÇÃO EXPRESSA art=Art. 671-D.  A regra disposta no §2º do 
+
+[ 4/12] [revogada] REN 414/2010 substituída
+   Q: Quais resoluções normativas da ANEEL foram expressamente revogadas pela REN 1000/2021?
+   A (8.74s, PASS): A Resolução Normativa ANEEL nº 1000/2021 revogou expressamente as seguintes resoluções normativas:
+*   Resolução nº ~~145~~, de 12 de abril de 2001 [ren20211000__e5fb7e538d | art 677, I].
+*   Resolução Normativa ANEEL nº ~~229~~, de 8 de agosto de 2006 [ren202...
+   top citation: ren20211000__e5fb7e538d score=1.498 situacao=NÃO CONSTA REVOGAÇÃO EXPRESSA art=Art. 677. Ficam revogados:
+
+[ 5/12] [ementa] objeto Despacho 1442/2021
+   Q: Em no máximo duas frases, qual é o objeto do Despacho ANEEL n. 1442 de 2021?
+   ERROR: timed out
+
+[ 6/12] [ementa] sumário REN 928/2021
+   Q: Sobre o que versa a Resolução Normativa ANEEL n. 928 de 2021? Responda em uma frase.
+   A (3.27s, PASS): A Resolução Normativa ANEEL nº 928, de 26 de março de 2021, estabelece medidas para a preservação da prestação do serviço público de distribuição de energia elétrica em decorrência da pandemia de coronavírus (COVID-19) e revoga as Resoluções Normativas nº 878/...
+   top citation: ren2021928__b2edbf0b28 score=1.275 situacao=REVOGADA art=
+
+[ 7/12] [scan_ocr] Nota Técnica 222/2021-SGT recomendação
+   Q: O que recomenda a Nota Técnica nº 222/2021-SGT/ANEEL?
+   A (3.53s, PASS): A Nota Técnica nº 222/2021-SGT/ANEEL recomenda a aprovação dos Cálculos Tarifários, conforme detalhado na conclusão da própria Nota Técnica [1 | p. 27], [2 | p. 27], [3 | p. 27], [4 | p. 27], [5 | p. 27], [6 | p. 27], [7 | p. 27], [8 | p. 27]. O Anexo I da Not...
+   top citation: nreh20212955__4319758315 score=0.850 situacao=NÃO CONSTA REVOGAÇÃO EXPRESSA art=
+
+[ 8/12] [scan_ocr] voto sobre inadimplência
+   Q: Em processos envolvendo inadimplência e religação de consumidor, qual é o entendimento consolidado da Superintendência da ANEEL sobre a exigência de débitos pretéritos?
+   A (4.16s, PASS): A Superintendência da ANEEL entende que a distribuidora não pode condicionar a religação ao pagamento de débitos em atraso há mais de 60 meses, conforme estabelecido pelo §2º do art. 128 da Resolução Normativa nº 414/2010 [1 | art 128, 48]. A distribuidora dev...
+   top citation: adsp20211442_1__c50a426790 score=0.836 situacao=NÃO CONSTA REVOGAÇÃO EXPRESSA art=Art. 128. Quando houver débitos decorren
+
+[ 9/12] [cross_ref] art. 128 REN 414 vs art. 356 REN 1000
+   Q: Como o art. 128 da REN 414/2010 se relaciona com o art. 356 da REN 1000/2021 em termos de suspensão de fornecimento por inadimplência?
+   A (5.70s, PASS): Não é possível estabelecer uma relação direta entre o art. 128 da REN 414/2010 e o art. 356 da REN 1000/2021 com base nos trechos fornecidos. O art. 128 da REN 414/2010 não consta nos trechos apresentados. No entanto, a REN 1000/2021 revogou a REN 414/2010 [do...
+   top citation: ren20211000__e5fb7e538d score=1.489 situacao=NÃO CONSTA REVOGAÇÃO EXPRESSA art=Art. 356. A suspensão do fornecimento de
+
+[10/12] [cross_ref] Lei 14.300/2022 e REN 482/2012
+   Q: Como a Lei nº 14.300/2022 impactou a REN 482/2012 sobre geração distribuída?
+   A (5.52s, PASS): A Lei nº 14.300/2022 impactou a REN 482/2012 ao instituir o Marco Legal da Microgeração e Minigeração Distribuída (MMGD) e o Sistema de Compensação de Energia Elétrica (SCEE), além de outras providências [5 | p. 1]. Essa lei trouxe comandos para o SCEE e estab...
+   top citation: adsp20212718_1__001823cb75 score=0.969 situacao=NÃO CONSTA REVOGAÇÃO EXPRESSA art=art. 5º, inciso XXXIV, alínea “a”.
+
+[11/12] [interpret] débito pretérito não-contemporâneo
+   Q: Pode a distribuidora suspender o fornecimento de energia em razão de débito pretérito não contemporâneo à interrupção? Justifique com base na regulação da ANEEL.
+   A (5.61s, PASS): Não, a distribuidora não pode suspender o fornecimento de energia elétrica em razão de débito pretérito que não seja contemporâneo à interrupção. O corte no fornecimento de energia configura meio de coação abusiva ao pagamento de débito pretérito, considerando...
+   top citation: adsp20211442_1__c50a426790 score=1.000 situacao=NÃO CONSTA REVOGAÇÃO EXPRESSA art=Art. 128. Quando houver débitos decorren
+
+[12/12] [interpret] compensação créditos entre distribuidoras
+   Q: A ANEEL permite a compensação de créditos de geração distribuída entre distribuidoras diferentes? Por que?
+   A (4.35s, PASS): A ANEEL não permite a compensação de créditos de geração distribuída entre distribuidoras diferentes [1 | p. 2-3], [7 | p. 3-4], [8 | p. 3-4]. A Resolução Normativa nº 482/2012 estabelece que a compensação de créditos deve ocorrer na mesma área de concessão ou...
+   top citation: adsp20214018_1__63efcabee2 score=0.998 situacao=NÃO CONSTA REVOGAÇÃO EXPRESSA art=Art. 2º Para efeitos desta Resolução, fi
+
+========================================================================
+SUMMARY
+========================================================================
+  tabela       2/2 pass   avg  6.20s
+    PASS bandeira vermelha P2 2016 — valor exato  (6.65s)
+    PASS prazo máximo débitos religação  (5.74s)
+  revogada     2/2 pass   avg  9.64s
+    PASS Art. 4º-A REN 482/2012 (revogado)  (10.54s)
+    PASS REN 414/2010 substituída  (8.74s)
+  ementa       1/2 pass   avg  3.27s
+    FAIL objeto Despacho 1442/2021  (FAILED)
+    PASS sumário REN 928/2021  (3.27s)
+  scan_ocr     2/2 pass   avg  3.85s
+    PASS Nota Técnica 222/2021-SGT recomendação  (3.53s)
+    PASS voto sobre inadimplência  (4.16s)
+  cross_ref    2/2 pass   avg  5.61s
+    PASS art. 128 REN 414 vs art. 356 REN 1000  (5.70s)
+    PASS Lei 14.300/2022 e REN 482/2012  (5.52s)
+  interpret    2/2 pass   avg  4.98s
+    PASS débito pretérito não-contemporâneo  (5.61s)
+    PASS compensação créditos entre distribuidoras  (4.35s)
+
+Total wall time: 244.0s (20.3s avg per query)

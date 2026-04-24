@@ -1,0 +1,164 @@
+{
+  "canIpForward": false,
+  "cpuPlatform": "Unknown CPU Platform",
+  "creationTimestamp": "2026-04-19T17:36:04.444-07:00",
+  "deletionProtection": false,
+  "disks": [
+    {
+      "architecture": "X86_64",
+      "autoDelete": true,
+      "boot": true,
+      "deviceName": "persistent-disk-0",
+      "diskSizeGb": "30",
+      "guestOsFeatures": [
+        {
+          "type": "UEFI_COMPATIBLE"
+        },
+        {
+          "type": "VIRTIO_SCSI_MULTIQUEUE"
+        },
+        {
+          "type": "GVNIC"
+        },
+        {
+          "type": "SEV_CAPABLE"
+        },
+        {
+          "type": "SEV_LIVE_MIGRATABLE_V2"
+        }
+      ],
+      "index": 0,
+      "interface": "SCSI",
+      "kind": "compute#attachedDisk",
+      "licenses": [
+        "https://www.googleapis.com/compute/v1/projects/debian-cloud/global/licenses/debian-12-bookworm"
+      ],
+      "mode": "READ_WRITE",
+      "source": "https://www.googleapis.com/compute/v1/projects/desafio-rag/zones/us-central1-a/disks/aneel-rag-vm",
+      "type": "PERSISTENT"
+    },
+    {
+      "autoDelete": true,
+      "boot": false,
+      "deviceName": "aneel-data",
+      "diskSizeGb": "50",
+      "index": 1,
+      "interface": "SCSI",
+      "kind": "compute#attachedDisk",
+      "mode": "READ_WRITE",
+      "source": "https://www.googleapis.com/compute/v1/projects/desafio-rag/zones/us-central1-a/disks/aneel-data",
+      "type": "PERSISTENT"
+    }
+  ],
+  "fingerprint": "uI59ZyCLRxg=",
+  "id": "1305215580504640030",
+  "kind": "compute#instance",
+  "labelFingerprint": "42WmSpB8rSM=",
+  "lastStartTimestamp": "2026-04-22T06:22:12.526-07:00",
+  "lastStopTimestamp": "2026-04-23T15:52:06.210-07:00",
+  "machineType": "https://www.googleapis.com/compute/v1/projects/desafio-rag/zones/us-central1-a/machineTypes/e2-standard-4",
+  "metadata": {
+    "fingerprint": "Lk_qlspcS68=",
+    "items": [
+      {
+        "key": "artifact-registry",
+        "value": "us-central1-docker.pkg.dev/desafio-rag/aneel"
+      },
+      {
+        "key": "docker-compose-prod",
+        "value": "# Production compose ? runs on the Compute Engine VM.\n# - Images pulled from Artifact Registry (see deploy/README.md)\n# - Qdrant storage and state.sqlite persisted on the SSD mounted at /var/lib/aneel\n# - GCS bucket mounted at /mnt/gcs via gcsfuse (see vm-startup.sh)\n# - Vertex LLM SA key written to /var/secrets by the startup script\n\nservices:\n  qdrant:\n    image: qdrant/qdrant:v1.12.4\n    container_name: aneel-qdrant\n    restart: unless-stopped\n    # Only reachable inside the VPC (firewall rule), plus loopback for QA.\n    ports:\n      - \"127.0.0.1:6333:6333\"\n      - \"127.0.0.1:6334:6334\"\n    volumes:\n      - /var/lib/aneel/qdrant:/qdrant/storage\n    environment:\n      - QDRANT__SERVICE__GRPC_PORT=6334\n\n  qa:\n    image: ${ARTIFACT_REGISTRY}/qa:${IMAGE_TAG:-latest}\n    container_name: aneel-qa\n    restart: unless-stopped\n    depends_on:\n      - qdrant\n    ports:\n      # Exposed to IAP / load balancer; do NOT bind to 0.0.0.0 publicly.\n      - \"8080:8080\"\n    env_file:\n      - /etc/aneel/qa.env\n    environment:\n      - QDRANT_URL=http://qdrant:6333\n      - EMBED_DEVICE=cpu\n      - PORT=8080\n      - VERTEX_LLM_CREDENTIALS_PATH=/var/secrets/vertex-llm-sa.json\n      - DATA_DIR=/mnt/gcs/aneel-rag-data\n      - STATE_DB_PATH=/var/lib/aneel/state.sqlite\n      - HF_HUB_DISABLE_XET=1\n      - HF_HUB_ENABLE_HF_TRANSFER=0\n    volumes:\n      - /var/secrets:/var/secrets:ro\n      - /mnt/gcs:/mnt/gcs:ro\n      - /var/lib/aneel:/var/lib/aneel\n      - /var/lib/aneel/hf_cache:/models\n"
+      },
+      {
+        "key": "gcp-infra-project",
+        "value": "desafio-rag"
+      },
+      {
+        "key": "gcp-llm-project",
+        "value": "bionic-medley-489719-t5"
+      },
+      {
+        "key": "gcs-bucket",
+        "value": "aneel-rag-data-desafio-rag"
+      },
+      {
+        "key": "image-tag",
+        "value": "latest"
+      },
+      {
+        "key": "qdrant-collection",
+        "value": "aneel_legis"
+      },
+      {
+        "key": "startup-script",
+        "value": "#!/usr/bin/env bash\n# VM startup script for the ANEEL RAG service VM.\n#\n# Executed by Compute Engine on first boot (and re-run if `--metadata-from-file\n# startup-script=...` is updated). Idempotent.\n#\n# Responsibilities:\n#   1. Install Docker + Docker Compose plugin + gcsfuse\n#   2. Mount the GCS data bucket at /mnt/gcs\n#   3. Fetch the Vertex LLM SA key from Secret Manager and drop it in /var/secrets\n#   4. Write /etc/aneel/qa.env from instance metadata\n#   5. Authenticate Docker to Artifact Registry\n#   6. docker compose up -d using deploy/docker-compose.prod.yml\n#\n# Required instance metadata (set via `gcloud compute instances add-metadata`):\n#   gcs-bucket             ? e.g. aneel-rag-data-desafio-rag\n#   artifact-registry      ? e.g. us-central1-docker.pkg.dev/desafio-rag/aneel\n#   image-tag              ? e.g. latest\n#   vertex-llm-secret-name ? e.g. vertex-llm-sa-key\n#   gcp-infra-project      ? e.g. desafio-rag\n#   gcp-llm-project        ? e.g. bionic-medley-489719-t5\n#   vertexai-location      ? e.g. us-central1\n#   qdrant-collection      ? e.g. aneel_legis\n\nset -euo pipefail\n\nlog() { echo \"[startup] $*\"; }\n\nMETA=\"http://metadata.google.internal/computeMetadata/v1/instance/attributes\"\nmeta() { curl -fsS -H \"Metadata-Flavor: Google\" \"${META}/$1\"; }\n\nGCS_BUCKET=$(meta gcs-bucket)\nARTIFACT_REGISTRY=$(meta artifact-registry)\nIMAGE_TAG=$(meta image-tag || echo \"latest\")\nVERTEX_SECRET_NAME=$(meta vertex-llm-secret-name)\nGCP_INFRA_PROJECT=$(meta gcp-infra-project)\nGCP_LLM_PROJECT=$(meta gcp-llm-project)\nVERTEXAI_LOCATION=$(meta vertexai-location || echo \"us-central1\")\nQDRANT_COLLECTION=$(meta qdrant-collection || echo \"aneel_legis\")\n\nAR_HOST=\"${ARTIFACT_REGISTRY%%/*}\"\n\nlog \"bucket=${GCS_BUCKET} registry=${ARTIFACT_REGISTRY} tag=${IMAGE_TAG}\"\n\n# ---------- 1. packages ----------\nif ! command -v docker >/dev/null 2>&1; then\n    log \"installing docker + compose plugin\"\n    apt-get update\n    apt-get install -y ca-certificates curl gnupg lsb-release\n    install -m 0755 -d /etc/apt/keyrings\n    curl -fsSL https://download.docker.com/linux/debian/gpg \\\n        | gpg --dearmor -o /etc/apt/keyrings/docker.gpg\n    chmod a+r /etc/apt/keyrings/docker.gpg\n    echo \"deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian $(. /etc/os-release && echo \"$VERSION_CODENAME\") stable\" \\\n        > /etc/apt/sources.list.d/docker.list\n    apt-get update\n    apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin\n    systemctl enable --now docker\nfi\n\nif ! command -v gcsfuse >/dev/null 2>&1; then\n    log \"installing gcsfuse\"\n    export GCSFUSE_REPO=gcsfuse-$(. /etc/os-release && echo \"$VERSION_CODENAME\")\n    echo \"deb [signed-by=/usr/share/keyrings/cloud.google.asc] https://packages.cloud.google.com/apt $GCSFUSE_REPO main\" \\\n        > /etc/apt/sources.list.d/gcsfuse.list\n    curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg \\\n        -o /usr/share/keyrings/cloud.google.asc\n    apt-get update\n    apt-get install -y gcsfuse\nfi\n\n# ---------- 2. directories ----------\nmkdir -p /mnt/gcs /var/lib/aneel/qdrant /var/lib/aneel/hf_cache /var/secrets /etc/aneel\nchmod 755 /mnt/gcs /var/lib/aneel\nchmod 700 /var/secrets\n\n# ---------- 3. gcsfuse mount (systemd unit, idempotent) ----------\nif ! mountpoint -q /mnt/gcs; then\n    log \"mounting gs://${GCS_BUCKET} at /mnt/gcs\"\n    cat >/etc/systemd/system/gcsfuse-aneel.service <<EOF\n[Unit]\nDescription=gcsfuse mount ${GCS_BUCKET}\nAfter=network-online.target\nWants=network-online.target\n\n[Service]\nType=forking\nExecStart=/usr/bin/gcsfuse --foreground=false -o allow_other --implicit-dirs ${GCS_BUCKET} /mnt/gcs\nExecStop=/bin/fusermount -u /mnt/gcs\nRestart=on-failure\n\n[Install]\nWantedBy=multi-user.target\nEOF\n    systemctl daemon-reload\n    systemctl enable --now gcsfuse-aneel.service\nfi\n\n# ---------- 4. fetch Vertex LLM SA key from Secret Manager ----------\nlog \"fetching secret ${VERTEX_SECRET_NAME} from project ${GCP_INFRA_PROJECT}\"\ngcloud secrets versions access latest \\\n    --secret=\"${VERTEX_SECRET_NAME}\" \\\n    --project=\"${GCP_INFRA_PROJECT}\" \\\n    > /var/secrets/vertex-llm-sa.json\nchmod 600 /var/secrets/vertex-llm-sa.json\n\n# ---------- 5. env for the QA container ----------\ncat >/etc/aneel/qa.env <<EOF\nGCP_INFRA_PROJECT=${GCP_INFRA_PROJECT}\nGCP_LLM_PROJECT=${GCP_LLM_PROJECT}\nGOOGLE_CLOUD_PROJECT=${GCP_LLM_PROJECT}\nGOOGLE_CLOUD_LOCATION=${VERTEXAI_LOCATION}\nGCS_BUCKET=${GCS_BUCKET}\nQDRANT_COLLECTION=${QDRANT_COLLECTION}\nEOF\nchmod 600 /etc/aneel/qa.env\n\n# ---------- 6. docker auth + compose up ----------\nlog \"authenticating docker to ${AR_HOST}\"\ngcloud auth configure-docker \"${AR_HOST}\" --quiet\n\nCOMPOSE_DIR=/opt/aneel-rag\nmkdir -p \"${COMPOSE_DIR}\"\n# In production you'd bake the compose file into the image or pull from repo;\n# for simplicity we copy it from instance metadata (base64 attribute).\nmeta docker-compose-prod > \"${COMPOSE_DIR}/docker-compose.prod.yml\"\n\ncat >\"${COMPOSE_DIR}/.env\" <<EOF\nARTIFACT_REGISTRY=${ARTIFACT_REGISTRY}\nIMAGE_TAG=${IMAGE_TAG}\nEOF\n\nlog \"pulling images + starting containers\"\ncd \"${COMPOSE_DIR}\"\ndocker compose -f docker-compose.prod.yml pull\ndocker compose -f docker-compose.prod.yml up -d\n\nlog \"startup complete\"\n"
+      },
+      {
+        "key": "vertex-llm-secret-name",
+        "value": "vertex-llm-sa-key"
+      },
+      {
+        "key": "vertexai-location",
+        "value": "us-central1"
+      }
+    ],
+    "kind": "compute#metadata"
+  },
+  "name": "aneel-rag-vm",
+  "networkInterfaces": [
+    {
+      "accessConfigs": [
+        {
+          "kind": "compute#accessConfig",
+          "name": "external-nat",
+          "networkTier": "PREMIUM",
+          "type": "ONE_TO_ONE_NAT"
+        }
+      ],
+      "fingerprint": "bxQ2_37wCy8=",
+      "kind": "compute#networkInterface",
+      "name": "nic0",
+      "network": "https://www.googleapis.com/compute/v1/projects/desafio-rag/global/networks/default",
+      "networkIP": "10.128.0.2",
+      "stackType": "IPV4_ONLY",
+      "subnetwork": "https://www.googleapis.com/compute/v1/projects/desafio-rag/regions/us-central1/subnetworks/default"
+    }
+  ],
+  "resourceStatus": {
+    "effectiveInstanceMetadata": {
+      "vmDnsSettingMetadataValue": "ZonalOnly"
+    }
+  },
+  "satisfiesPzi": true,
+  "scheduling": {
+    "automaticRestart": true,
+    "onHostMaintenance": "MIGRATE",
+    "preemptible": false,
+    "provisioningModel": "STANDARD"
+  },
+  "selfLink": "https://www.googleapis.com/compute/v1/projects/desafio-rag/zones/us-central1-a/instances/aneel-rag-vm",
+  "serviceAccounts": [
+    {
+      "email": "desafio-rag@desafio-rag.iam.gserviceaccount.com",
+      "scopes": [
+        "https://www.googleapis.com/auth/cloud-platform"
+      ]
+    }
+  ],
+  "shieldedInstanceConfig": {
+    "enableIntegrityMonitoring": true,
+    "enableSecureBoot": false,
+    "enableVtpm": true
+  },
+  "shieldedInstanceIntegrityPolicy": {
+    "updateAutoLearnPolicy": true
+  },
+  "startRestricted": false,
+  "status": "TERMINATED",
+  "tags": {
+    "fingerprint": "VaaNF_m0PrE=",
+    "items": [
+      "aneel-qa"
+    ]
+  },
+  "zone": "https://www.googleapis.com/compute/v1/projects/desafio-rag/zones/us-central1-a"
+}

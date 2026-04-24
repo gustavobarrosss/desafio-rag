@@ -1,9 +1,41 @@
-.venv/
+# Python
 __pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# venv
+.venv/
+venv/
+
+# Dados pesados (regen via pipeline)
 data/
 qdrant_storage/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+__MACOSX/
+._*
+.idea/
+.vscode/
+.claude
+
+# Logs / temp
+*.log
+%TEMP%*
+*.tmp
+
+# Scratch local em deploy/ (mantem _metadata/)
+deploy/_bench_*.json
+deploy/_test_*.json
+deploy/_scroll.py
+deploy/plan.txt
+
+# Permitir explicitamente
 !package.json
 !package-lock.json
 !tsconfig.json
 !dados_grupo_estudos/*.json
-.claude

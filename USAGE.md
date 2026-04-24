@@ -9,7 +9,7 @@ Guia rápido para subir o servidor na GCP, parar quando não estiver usando, e c
 A VM `aneel-rag-vm` (Compute Engine, `e2-standard-4`, us-central1-a) hospeda dois containers:
 
 - `aneel-qdrant` — índice vetorial (124.822 chunks, BGE-M3 dense + sparse)
-- `aneel-qa` — FastAPI com `/ask`, `/health`, `/docs`. Reranker via **Cohere Rerank API** (multilingual v3) — sub-segundo, sem GPU local.
+- `aneel-qa` — FastAPI com `/ask`, `/health`, `/docs`
 
 Cobrança de compute acontece apenas enquanto a VM está `RUNNING`. Pause entre sessões.
 
@@ -26,7 +26,7 @@ O que faz:
 3. Aguarda SSH ficar acessível.
 4. Aguarda containers `aneel-qa` e `aneel-qdrant` ficarem `healthy`.
 5. Probe interno `/health`.
-6. **Aquecimento**: dispara uma `/ask` boba para forçar o carregamento de BGE-M3 + `doc_index` (senão a primeira chamada real leva ~5 min).
+6. **Aquecimento**: dispara uma `/ask` boba para forçar o carregamento de BGE-M3 + reranker + `doc_index` (senão a primeira chamada real leva 1–3 min).
 
 Ao final imprime IP externo e o próximo comando.
 
@@ -53,13 +53,10 @@ bash deploy/stop.sh
 ### URL pública
 
 ```
-http://104.154.141.248:8080
+http://34.132.112.29:8080
 ```
 
 > **⚠️ HTTP sem TLS.** Senha trafega em texto claro. OK para benchmark/demo de curto prazo — rotacione depois.
->
-> **⚠️ IP externo muda** se a VM for recriada. Após `start.sh`, confirme o IP atual com:
-> `gcloud compute instances describe aneel-rag-vm --zone=us-central1-a --format="value(networkInterfaces[0].accessConfigs[0].natIP)"`
 
 ### Credenciais
 
@@ -69,7 +66,7 @@ http://104.154.141.248:8080
 ### Pelo browser (Swagger UI)
 
 1. Confirme que a VM está `RUNNING` (`bash deploy/start.sh`).
-2. Abra: http://104.154.141.248:8080/docs
+2. Abra: http://34.132.112.29:8080/docs
 3. O navegador pede user/senha — informe os de cima.
 4. Clique em `POST /ask` → **Try it out**.
 5. Cole um JSON no corpo (veja exemplos abaixo) → **Execute**.
@@ -79,7 +76,7 @@ http://104.154.141.248:8080
 
 ```bash
 curl -u "desafio-rag:queria_uma_bolsa_rs" \
-  -X POST http://104.154.141.248:8080/ask \
+  -X POST http://34.132.112.29:8080/ask \
   -H "Content-Type: application/json" \
   -d '{"question":"O que diz a REN 1000/2021?","top_k":6}'
 ```
@@ -218,17 +215,17 @@ Apenas chunks com tabela:
 
 ## 4. Como o RAG funciona (alto nível)
 
-1. **Embed query** — BGE-M3 gera vetor denso (1024d) + vetor esparso. (~0.5s CPU)
-2. **Busca híbrida** no Qdrant: (~0.1s)
+1. **Embed query** — BGE-M3 gera vetor denso (1024d) + vetor esparso.
+2. **Busca híbrida** no Qdrant:
    - dense top-40 (similaridade cosseno)
    - sparse top-40 (BM25-style lexical)
    - **identifier lookup** se a query contém `número+ano` (ex: `1442` + `2021` → filtra pelos docs cujo arquivo casa).
 3. **Fusão RRF** (Reciprocal Rank Fusion) dos três rankings → 20 candidatos.
-4. **Reranker Cohere** (`rerank-multilingual-v3.0`) pontua cada `(query, chunk)` via API. Cada chunk é prefixado com `[arquivo: ...]` para metadata match. (~0.3s)
+4. **Reranker** BGE-reranker-v2-m3 pontua cada `(query, chunk)` com metadata `[arquivo: ...]` prefixada.
 5. **Penalizações/boosts**:
    - chunks de ementa (pg 0) × 0.85
    - chunks vindos do identifier lookup × 1.5
-6. **Top-k final** vai para o **Gemini 2.5 Flash** (Vertex AI) com prompt que instrui a citar `[doc_id | art/pg]`. (~2-3s)
+6. **Top-k final** vai para o Gemini 2.5 Flash (Vertex AI) com prompt que instrui a citar `[doc_id | art/pg]`.
 
 ---
 
@@ -236,12 +233,10 @@ Apenas chunks com tabela:
 
 | Cenário | Tempo |
 |---|---|
-| `/ask` warm (modelos carregados) | **3–5 s** |
-| `/ask` após `deploy/start.sh` (warm-up já rodou) | **3–5 s** |
-| `/ask` primeira chamada após reboot sem warm-up | 3–5 min (carrega BGE-M3 + doc_index scroll) |
+| `/ask` warm (modelos carregados) | 3–12 s |
+| `/ask` após `deploy/start.sh` (warm-up já rodou) | 3–12 s |
+| `/ask` primeira chamada após reboot sem warm-up | 1–3 min (carrega BGE-M3 + reranker + doc_index) |
 | `/health` | < 200 ms |
-
-> Histórico: antes do Cohere rerank, warm levava ~108s. Migração para API hospedada cortou rerank de ~50s para ~0.3s.
 
 ---
 
@@ -250,12 +245,10 @@ Apenas chunks com tabela:
 | Sintoma | Causa provável | Fix |
 |---|---|---|
 | `HTTP 401` mesmo com credentials | Senha errada, caracteres especiais sem escape | Use `-u "user:pass"` no curl, browser trata automaticamente |
-| `timed out` após ~5 min | Cold start — BGE-M3 ainda carregando | Rode `bash deploy/start.sh` para aquecer, tente de novo |
+| `timed out` após ~5 min | Cold start — modelos ainda carregando | Rode `bash deploy/start.sh` para aquecer, tente de novo |
 | `connection refused` | VM parada | `bash deploy/start.sh` |
-| IP mudou | VM foi recriada (não só parada) | Rode `gcloud compute instances describe aneel-rag-vm --zone=us-central1-a --format="value(networkInterfaces[0].accessConfigs[0].natIP)"` |
 | `"não consta no contexto"` em pergunta óbvia | Query muito genérica ou chunk não recuperado | Adicione o número/ano do documento na pergunta, ou aumente `top_k` |
 | Resposta mostra `~~texto tachado~~` | Artefato de parsing de PDF | Cosmético; o conteúdo está correto. Re-embed limparia (~12h CPU) |
-| `cohere.error.UnauthorizedException` nos logs | Cohere key inválida ou expirada | Atualize `COHERE_API_KEY` em `/etc/aneel/qa.env` na VM, restart container |
 
 Logs da VM:
 
@@ -264,22 +257,14 @@ gcloud compute ssh aneel-rag-vm --zone=us-central1-a \
   --command="sudo docker logs --tail 100 aneel-qa"
 ```
 
-Logs com timing breakdown:
-
-```bash
-gcloud compute ssh aneel-rag-vm --zone=us-central1-a \
-  --command="sudo docker logs aneel-qa 2>&1 | grep timing | tail -20"
-```
-
 ---
 
 ## 7. Custo
 
-Com `e2-standard-4` (4vCPU, 16GB) + 30GB boot + 50GB SSD:
+Com `e2-standard-4` + 30GB boot + 50GB SSD:
 
 - **Ligada 24/7**: ~US$ 50/mês de compute + US$ 8/mês de disco.
 - **Desligada**: só ~US$ 8/mês de disco.
 - **Vertex AI Gemini 2.5 Flash**: ~US$ 0,10 / 1M tokens de input. Uma `/ask` típica = ~3–8k tokens.
-- **Cohere Rerank**: 1.000 requests/mês grátis no trial, depois ~US$ 1 / 1.000 requests.
 
 Hábito recomendado: `deploy/start.sh` antes da sessão → benchmark → `deploy/stop.sh`.

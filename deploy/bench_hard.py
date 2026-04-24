@@ -16,6 +16,7 @@ URL = "http://***REMOVIDO***:8080/ask"
 USER = "desafio-rag"
 PASS = "***REMOVIDO***"
 TIMEOUT = 180  # per-query timeout seconds
+RATE_SLEEP = 6.5  # seconds between queries — Cohere Trial limit 10 RPM
 
 BENCH = [
     # ── TABELA: valores numéricos precisos ────────────────────────────────
@@ -120,6 +121,8 @@ def main() -> int:
         cat = item["category"]
         label = item["label"]
         question = item["question"]
+        if i > 1:
+            time.sleep(RATE_SLEEP)
         print(f"[{i:2d}/{total}] [{cat}] {label}")
         print(f"   Q: {question}")
         try:
@@ -131,8 +134,12 @@ def main() -> int:
 
         answer = (d.get("answer") or "").strip()
         cits = d.get("citations") or []
-        # Heuristic: pass if answer doesn't begin with "não consta" and has ≥1 citation.
-        rejected = answer.lower().startswith("não consta") or answer.lower().startswith("nao consta")
+        al = answer.lower()
+        # Reject only if the answer is *purely* a refusal: starts with "não consta"
+        # AND has no substantial follow-up (<300 chars of prose after).
+        refusal_prefix = al.startswith("não consta") or al.startswith("nao consta")
+        substantive = len(answer) > 300
+        rejected = refusal_prefix and not substantive
         passed = bool(cits) and not rejected
         by_cat.setdefault(cat, []).append((label, elapsed, passed))
 

@@ -466,7 +466,91 @@ add_text(s, Inches(7.0), Inches(5.65), Inches(6), Inches(1.4),
          size=14, color=DARK)
 add_footer(s, 7)
 
-# 8 — Embedding & Vector DB
+# 8 — Chunking: estratégia em 3 níveis
+s = add_slide()
+add_header(s, "Estratégia em 3 Níveis (Cascata)",
+           "Não é só regex, nem só recursivo — é os dois trabalhando juntos")
+
+# Topo: introdução
+add_text(s, Inches(0.6), Inches(1.35), Inches(12), Inches(0.5),
+         "Cada nível só entra em ação se o anterior não resolveu sozinho:",
+         size=15, color=DARK)
+
+# Nível 1
+n1 = s.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE,
+                        Inches(0.5), Inches(2.0), Inches(12.3), Inches(1.4))
+n1.fill.solid(); n1.fill.fore_color.rgb = RGBColor(0xE6, 0xF0, 0xFF)
+n1.line.color.rgb = NAVY
+# Badge nível
+b1 = s.shapes.add_shape(MSO_SHAPE.OVAL,
+                        Inches(0.65), Inches(2.15), Inches(0.6), Inches(0.6))
+b1.fill.solid(); b1.fill.fore_color.rgb = NAVY
+b1.line.fill.background()
+tf = b1.text_frame; tf.margin_top = Inches(0.02)
+p = tf.paragraphs[0]; p.alignment = PP_ALIGN.CENTER
+r = p.add_run(); r.text = "1"
+r.font.size = Pt(20); r.font.bold = True; r.font.color.rgb = WHITE
+
+add_text(s, Inches(1.4), Inches(2.10), Inches(11.0), Inches(0.4),
+         "Cortar pela estrutura da lei (regex)",
+         size=17, bold=True, color=NAVY)
+add_text(s, Inches(1.4), Inches(2.55), Inches(11.0), Inches(0.85),
+         "Procura cabeçalhos: Art. 5º · § 1º · Capítulo II · Seção III · Título IV.\n"
+         "Cada um deles começa um novo pedaço. Resultado: 1 artigo = 1 chunk.",
+         size=13, color=DARK)
+
+# Nível 2
+n2 = s.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE,
+                        Inches(0.5), Inches(3.55), Inches(12.3), Inches(1.55))
+n2.fill.solid(); n2.fill.fore_color.rgb = RGBColor(0xFF, 0xF4, 0xE0)
+n2.line.color.rgb = RGBColor(0xC2, 0x6B, 0x00)
+b2 = s.shapes.add_shape(MSO_SHAPE.OVAL,
+                        Inches(0.65), Inches(3.70), Inches(0.6), Inches(0.6))
+b2.fill.solid(); b2.fill.fore_color.rgb = RGBColor(0xC2, 0x6B, 0x00)
+b2.line.fill.background()
+tf = b2.text_frame; tf.margin_top = Inches(0.02)
+p = tf.paragraphs[0]; p.alignment = PP_ALIGN.CENTER
+r = p.add_run(); r.text = "2"
+r.font.size = Pt(20); r.font.bold = True; r.font.color.rgb = WHITE
+
+add_text(s, Inches(1.4), Inches(3.65), Inches(11.0), Inches(0.4),
+         "SE o artigo for gigante (>900 tokens) → janela deslizante",
+         size=17, bold=True, color=RGBColor(0xC2, 0x6B, 0x00))
+add_text(s, Inches(1.4), Inches(4.10), Inches(11.0), Inches(1.0),
+         "Alguns artigos têm 5+ páginas. Cortamos por parágrafos com sobreposição\n"
+         "de 100 tokens entre os pedaços — o final de um aparece no começo do próximo.\n"
+         "Assim o contexto não \"se perde\" entre chunks vizinhos.",
+         size=13, color=DARK)
+
+# Nível 3
+n3 = s.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE,
+                        Inches(0.5), Inches(5.25), Inches(12.3), Inches(1.4))
+n3.fill.solid(); n3.fill.fore_color.rgb = RGBColor(0xE6, 0xF4, 0xE6)
+n3.line.color.rgb = RGBColor(0x22, 0x88, 0x44)
+b3 = s.shapes.add_shape(MSO_SHAPE.OVAL,
+                        Inches(0.65), Inches(5.40), Inches(0.6), Inches(0.6))
+b3.fill.solid(); b3.fill.fore_color.rgb = RGBColor(0x22, 0x88, 0x44)
+b3.line.fill.background()
+tf = b3.text_frame; tf.margin_top = Inches(0.02)
+p = tf.paragraphs[0]; p.alignment = PP_ALIGN.CENTER
+r = p.add_run(); r.text = "3"
+r.font.size = Pt(20); r.font.bold = True; r.font.color.rgb = WHITE
+
+add_text(s, Inches(1.4), Inches(5.35), Inches(11.0), Inches(0.4),
+         "SE sobrar pedaço minúsculo (<60 tokens) → funde no anterior",
+         size=17, bold=True, color=RGBColor(0x22, 0x88, 0x44))
+add_text(s, Inches(1.4), Inches(5.80), Inches(11.0), Inches(0.85),
+         "Migalha tipo \"§ 3º Revogado.\" não vale chunk próprio — vira ruído na busca.\n"
+         "Exceção: se contém tabela, mantém separado (tabelas não podem ser fundidas).",
+         size=13, color=DARK)
+
+# Bottom: comparativo curto
+add_text(s, Inches(0.6), Inches(6.85), Inches(12), Inches(0.4),
+         "📌 Estrutura primeiro · tamanho depois — respeita como a lei foi escrita",
+         size=15, bold=True, color=NAVY)
+add_footer(s, 8)
+
+# 9 — Embedding & Vector DB
 s = add_slide()
 add_header(s, "Transformando Texto em \"Coordenadas\"",
            "Como o computador entende o significado de um trecho")
@@ -513,9 +597,9 @@ add_text(s, Inches(0.6), Inches(6.3), Inches(12), Inches(0.4),
 add_text(s, Inches(0.8), Inches(6.75), Inches(12), Inches(0.4),
          "Roda local (Docker), grátis. Permite filtrar por ano, documento, situação.",
          size=14, color=DARK)
-add_footer(s, 8)
+add_footer(s, 9)
 
-# 9 — Retriever
+# 10 — Retriever
 s = add_slide()
 add_header(s, "Como Encontrar o Trecho Certo",
            "3 \"investigadores\" trabalham juntos pra achar a melhor resposta")
@@ -570,9 +654,9 @@ add_bullets(s, Inches(0.8), Inches(5.55), Inches(12), Inches(2.0), [
     (1, "Número de norma pega \"REN 1.000/2021\" direto, sem depender de contexto"),
     "Juiz final reordena com modelo mais preciso → garante que os 6 melhores ficam no topo",
 ], size=14)
-add_footer(s, 9)
+add_footer(s, 10)
 
-# 10 — Geração & Avaliação
+# 11 — Geração & Avaliação
 s = add_slide()
 add_header(s, "Resposta e Como Sabemos Se Está Boa",
            "LLM monta a resposta · gabarito mede qualidade")
@@ -623,9 +707,9 @@ add_text(s, Inches(7.0), Inches(6.4), Inches(6), Inches(0.5),
          "→ Outra LLM atua como \"juiz\" comparando\n"
          "    resposta nossa × resposta do gabarito.",
          size=13, color=GREY)
-add_footer(s, 10)
+add_footer(s, 11)
 
-# 11 — Resultado & Trade-offs
+# 12 — Resultado & Trade-offs
 s = add_slide()
 add_header(s, "O Que Funcionou e o Que Foi Trocado",
            "Decisões importantes em linguagem simples")
@@ -653,9 +737,9 @@ add_text(s, Inches(0.6), Inches(5.5), Inches(12), Inches(0.4),
 add_bullets(s, Inches(0.8), Inches(6.05), Inches(12), Inches(1.5), [
     "Testar variações de tamanho de chunk · LLM reescrevendo a pergunta antes de buscar · cache de buscas frequentes",
 ], size=14)
-add_footer(s, 11)
+add_footer(s, 12)
 
-# 12 — Stack final + obrigado
+# 13 — Stack final + obrigado
 s = add_slide()
 add_header(s, "Ferramentas Usadas",
            "Cada etapa, qual ferramenta e pra que serve")
@@ -676,7 +760,7 @@ add_table(s, Inches(0.4), Inches(1.3), Inches(12.5), Inches(5.4),
 add_text(s, Inches(0.6), Inches(6.85), Inches(12.1), Inches(0.5),
          "Obrigado!", size=28, bold=True, color=NAVY,
          align=PP_ALIGN.CENTER)
-add_footer(s, 12)
+add_footer(s, 13)
 
 out = "c:/Users/Gustavo/Desktop/CEIA/desafio-rag/apresentacao.pptx"
 prs.save(out)

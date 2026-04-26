@@ -52,9 +52,15 @@ bash deploy/stop.sh
 
 ### URL pública
 
+IP externo é **efêmero** — muda a cada `start`. `deploy/start.sh` imprime o IP atual ao final. Ou consulte direto:
+
+```bash
+gcloud compute instances describe aneel-rag-vm \
+  --zone=us-central1-a --project=desafio-rag \
+  --format="value(networkInterfaces[0].accessConfigs[0].natIP)"
 ```
-http://34.132.112.29:8080
-```
+
+Endpoint base: `http://<IP_EXTERNO>:8080`
 
 > **⚠️ HTTP sem TLS.** Senha trafega em texto claro. OK para benchmark/demo de curto prazo — rotacione depois.
 
@@ -65,8 +71,8 @@ http://34.132.112.29:8080
 
 ### Pelo browser (Swagger UI)
 
-1. Confirme que a VM está `RUNNING` (`bash deploy/start.sh`).
-2. Abra: http://34.132.112.29:8080/docs
+1. Confirme que a VM está `RUNNING` (`bash deploy/start.sh`) e pegue o IP no output.
+2. Abra: `http://<IP_EXTERNO>:8080/docs`
 3. O navegador pede user/senha — informe os de cima.
 4. Clique em `POST /ask` → **Try it out**.
 5. Cole um JSON no corpo (veja exemplos abaixo) → **Execute**.
@@ -75,8 +81,12 @@ http://34.132.112.29:8080
 ### Pelo terminal (curl)
 
 ```bash
+IP=$(gcloud compute instances describe aneel-rag-vm \
+  --zone=us-central1-a --project=desafio-rag \
+  --format="value(networkInterfaces[0].accessConfigs[0].natIP)")
+
 curl -u "desafio-rag:queria_uma_bolsa_rs" \
-  -X POST http://34.132.112.29:8080/ask \
+  -X POST "http://${IP}:8080/ask" \
   -H "Content-Type: application/json" \
   -d '{"question":"O que diz a REN 1000/2021?","top_k":6}'
 ```
@@ -221,7 +231,9 @@ Apenas chunks com tabela:
    - sparse top-40 (BM25-style lexical)
    - **identifier lookup** se a query contém `número+ano` (ex: `1442` + `2021` → filtra pelos docs cujo arquivo casa).
 3. **Fusão RRF** (Reciprocal Rank Fusion) dos três rankings → 20 candidatos.
-4. **Reranker** BGE-reranker-v2-m3 pontua cada `(query, chunk)` com metadata `[arquivo: ...]` prefixada.
+4. **Reranker** pontua cada `(query, chunk)` com metadata `[arquivo: ...]` prefixada:
+   - **Cohere `rerank-multilingual-v3.0`** quando `COHERE_API_KEY` está setada (default em produção — rápido, sem GPU, com retry/backoff em 429).
+   - Fallback **BGE-reranker-v2-m3** local se a chave não existir.
 5. **Penalizações/boosts**:
    - chunks de ementa (pg 0) × 0.85
    - chunks vindos do identifier lookup × 1.5
@@ -265,6 +277,7 @@ Com `e2-standard-4` + 30GB boot + 50GB SSD:
 
 - **Ligada 24/7**: ~US$ 50/mês de compute + US$ 8/mês de disco.
 - **Desligada**: só ~US$ 8/mês de disco.
-- **Vertex AI Gemini 2.5 Flash**: ~US$ 0,10 / 1M tokens de input. Uma `/ask` típica = ~3–8k tokens.
+- **Vertex AI Gemini 2.5 Flash**: ~US$ 0,15 / 1M tokens de input · US$ 0,60 / 1M output. Uma `/ask` típica = ~3–8k tokens input.
+- **Cohere Rerank v3 multilingual**: cobrança por *search unit* (uma query até 100 docs). Volume do benchmark é desprezível.
 
 Hábito recomendado: `deploy/start.sh` antes da sessão → benchmark → `deploy/stop.sh`.

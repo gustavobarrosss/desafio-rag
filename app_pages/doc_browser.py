@@ -4,6 +4,30 @@ import pandas as pd
 import streamlit as st
 
 
+def _load_filter_options():
+    if "doc_browser_opts" in st.session_state:
+        return st.session_state["doc_browser_opts"]
+    try:
+        from src.state import connection
+        with connection() as conn:
+            anos = [r[0] for r in conn.execute(
+                "SELECT DISTINCT ano FROM docs WHERE ano IS NOT NULL ORDER BY ano"
+            ).fetchall()]
+            situacoes = [r[0] for r in conn.execute(
+                "SELECT DISTINCT situacao_doc FROM docs WHERE situacao_doc IS NOT NULL ORDER BY situacao_doc"
+            ).fetchall()]
+            tipos_raw = conn.execute(
+                "SELECT tipo_pdf, COUNT(*) as n FROM docs WHERE tipo_pdf IS NOT NULL "
+                "GROUP BY tipo_pdf ORDER BY n DESC LIMIT 30"
+            ).fetchall()
+            tipos = [r[0] for r in tipos_raw]
+    except Exception:
+        anos, situacoes, tipos = [], [], []
+    opts = {"anos": anos, "situacoes": situacoes, "tipos": tipos}
+    st.session_state["doc_browser_opts"] = opts
+    return opts
+
+
 def render():
     st.title("Browser de Documentos")
 
@@ -49,19 +73,13 @@ def render():
         )
         return sql, params
 
+    opts = _load_filter_options()
+
     with st.form("filters_form"):
         col1, col2, col3 = st.columns(3)
-        anos = col1.multiselect("Ano(s)", options=list(range(2010, 2026)), default=[])
-        situacoes = col2.multiselect(
-            "Situação",
-            options=["vigente", "revogada", "não classificada"],
-            default=[],
-        )
-        tipos = col3.multiselect(
-            "Tipo PDF",
-            options=["digital", "scanned", "mixed"],
-            default=[],
-        )
+        anos = col1.multiselect("Ano(s)", options=opts["anos"], default=[])
+        situacoes = col2.multiselect("Situação", options=opts["situacoes"], default=[])
+        tipos = col3.multiselect("Tipo PDF (top 30)", options=opts["tipos"], default=[])
 
         col4, col5, col6, col7 = st.columns(4)
         status_opts = ["todos", "ok", "pending", "error"]

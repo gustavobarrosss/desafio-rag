@@ -9,9 +9,7 @@ from qdrant_client import QdrantClient, models
 from qdrant_client.http.exceptions import UnexpectedResponse
 from tqdm import tqdm
 
-from .chunker import iter_all_chunks, load_chunks
 from .config import SETTINGS
-from .embed import embed_texts
 from .state import mark_status, pending
 
 log = logging.getLogger(__name__)
@@ -78,6 +76,7 @@ def _build_point(chunk: dict, dense_vec, sparse_vec: dict[int, float]) -> models
 def upsert_chunks(chunks: list[dict]) -> int:
     if not chunks:
         return 0
+    from .embed import embed_texts
     client = get_client()
     ensure_collection(client)
     texts = [c["text"] for c in chunks]
@@ -127,6 +126,7 @@ def ingest_pending(limit: int | None = None) -> dict:
 
     pending_count = 0
     for row in tqdm(rows, desc="embed"):
+        from .chunker import load_chunks
         doc_id = row["doc_id"]
         try:
             chunks = load_chunks(doc_id)

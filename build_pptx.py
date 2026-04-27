@@ -206,58 +206,61 @@ add_header(s, "Baixar e \"Ler\" os PDFs",
            "Como tirar o texto de 27 mil documentos sem gastar fortuna")
 
 # Lado esquerdo — download
-add_text(s, Inches(0.6), Inches(1.4), Inches(6), Inches(0.4),
-         "🌐 Baixar — o site bloqueava bots", size=20, bold=True, color=NAVY)
-add_bullets(s, Inches(0.8), Inches(1.9), Inches(5.8), Inches(2.0), [
-    "Site da ANEEL detecta robôs e devolve erro",
-    "Solução: ferramenta que se passa pelo navegador Chrome",
-    "Resultado: download em massa funciona",
-], size=15)
+add_text(s, Inches(0.6), Inches(1.35), Inches(6), Inches(0.4),
+         "🌐 Download — Cloudflare bloqueia bots", size=18, bold=True, color=NAVY)
+add_bullets(s, Inches(0.8), Inches(1.85), Inches(5.8), Inches(2.0), [
+    "Site da ANEEL inspeciona JA3 (TLS fingerprint)",
+    "requests / httpx → 403. curl_cffi com impersonate=chrome resolve",
+    "Async com 16 conexões paralelas + retry exponencial",
+], size=12)
 
-# Lado esquerdo — parser inteligente
-add_text(s, Inches(0.6), Inches(4.0), Inches(6), Inches(0.4),
-         "🧠 Decisor inteligente por página", size=20, bold=True, color=NAVY)
-add_bullets(s, Inches(0.8), Inches(4.5), Inches(5.8), Inches(2.6), [
-    "Cada página é classificada antes de ser lida:",
-    (1, "Texto digital → caminho rápido (grátis)"),
-    (1, "Imagem escaneada → caminho lento (LLM com visão)"),
-    (1, "Tabela complexa → ferramenta especializada"),
-], size=15)
+# Lado esquerdo — router por página
+add_text(s, Inches(0.6), Inches(3.7), Inches(6), Inches(0.4),
+         "🧠 Router por página (não por doc)", size=18, bold=True, color=NAVY)
+add_bullets(s, Inches(0.8), Inches(4.2), Inches(5.8), Inches(2.8), [
+    "Cada página classificada via PyMuPDF antes do parse:",
+    (1, "digital → texto extraível direto"),
+    (1, "scanned → poucos chars + alta razão de imagem → vision"),
+    (1, "complex → tabelas detectadas → Camelot ou vision"),
+    "Decisão por página: doc misto é a regra, não exceção",
+], size=12)
 
-# Lado direito — analogia 2 caminhos
-add_text(s, Inches(7.0), Inches(1.4), Inches(6), Inches(0.4),
-         "Por que 2 caminhos?", size=20, bold=True, color=NAVY)
+# Lado direito — 2 caminhos com ferramentas nomeadas
+add_text(s, Inches(7.0), Inches(1.35), Inches(6), Inches(0.4),
+         "Fast vs Slow path", size=18, bold=True, color=NAVY)
 
 fast = s.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE,
-                          Inches(7.0), Inches(1.95), Inches(5.8), Inches(2.1))
+                          Inches(7.0), Inches(1.85), Inches(5.8), Inches(2.2))
 fast.fill.solid(); fast.fill.fore_color.rgb = RGBColor(0xE6, 0xF4, 0xE6)
 fast.line.color.rgb = RGBColor(0x22, 0x88, 0x44)
-add_text(s, Inches(7.2), Inches(2.05), Inches(5.5), Inches(0.5),
-         "✓ Caminho rápido (95% das páginas)",
-         size=16, bold=True, color=RGBColor(0x22, 0x88, 0x44))
-add_text(s, Inches(7.2), Inches(2.55), Inches(5.5), Inches(1.5),
-         "PDF \"normal\" tem o texto guardado dentro.\n"
-         "Ferramenta abre, copia o texto, pega tabelas.\n"
-         "Custo: zero. Velocidade: alta.",
-         size=14, color=DARK)
+add_text(s, Inches(7.2), Inches(1.95), Inches(5.5), Inches(0.5),
+         "✓ Fast path (~95% das páginas)",
+         size=15, bold=True, color=RGBColor(0x22, 0x88, 0x44))
+add_text(s, Inches(7.2), Inches(2.45), Inches(5.5), Inches(1.7),
+         "PyMuPDF → texto + bbox dos spans\n"
+         "pdfplumber → tabelas simples (markdown)\n"
+         "Camelot → tabelas com bordas (lattice)\n"
+         "Custo: 0 · totalmente local",
+         size=12, color=DARK)
 
 slow = s.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE,
-                          Inches(7.0), Inches(4.2), Inches(5.8), Inches(2.1))
+                          Inches(7.0), Inches(4.20), Inches(5.8), Inches(2.2))
 slow.fill.solid(); slow.fill.fore_color.rgb = RGBColor(0xFF, 0xF0, 0xE0)
 slow.line.color.rgb = RGBColor(0xC2, 0x6B, 0x00)
 add_text(s, Inches(7.2), Inches(4.30), Inches(5.5), Inches(0.5),
-         "⚠ Caminho lento (~5% das páginas)",
-         size=16, bold=True, color=RGBColor(0xC2, 0x6B, 0x00))
-add_text(s, Inches(7.2), Inches(4.80), Inches(5.5), Inches(1.5),
-         "PDF escaneado é uma foto — não tem texto.\n"
-         "LLM com visão (Gemini) lê a imagem.\n"
-         "Custo: paga por página. Só usar quando precisa.",
-         size=14, color=DARK)
+         "⚠ Slow path (~5% das páginas)",
+         size=15, bold=True, color=RGBColor(0xC2, 0x6B, 0x00))
+add_text(s, Inches(7.2), Inches(4.80), Inches(5.5), Inches(1.7),
+         "Gemini 2.5 Flash via Vertex AI (multimodal)\n"
+         "Render 180 DPI → prompt que exige ~~tachado~~\n"
+         "thinking_budget=0 → custo de input ~$0,15/M tokens\n"
+         "Fallback: gemini-2.5-flash-lite",
+         size=12, color=DARK)
 
 # Bottom — economia
 add_text(s, Inches(0.6), Inches(6.65), Inches(12), Inches(0.5),
-         "💰 Sem o decisor: ~$300+. Com o decisor: ~$22. Economia de ~93%.",
-         size=16, bold=True, color=RGBColor(0x22, 0x88, 0x44))
+         "💰 Vision em 100% das páginas: ~$300+ · com router por página: ~$22 · ~93% de economia",
+         size=14, bold=True, color=RGBColor(0x22, 0x88, 0x44))
 add_footer(s, 4)
 
 # 5 — Texto revogado: o conceito
@@ -441,29 +444,29 @@ add_text(s, Inches(0.8), Inches(6.10), Inches(5.7), Inches(1.0),
          "Respeitamos como a lei foi escrita.",
          size=13, color=DARK)
 
-# Direita — exemplo visual
+# Direita — payload do chunk
 add_text(s, Inches(7.0), Inches(1.4), Inches(6), Inches(0.4),
-         "Exemplo de pedaço gerado", size=20, bold=True, color=NAVY)
+         "Payload propagado por chunk", size=20, bold=True, color=NAVY)
 ex = s.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE,
-                        Inches(7.0), Inches(1.95), Inches(5.9), Inches(3.5))
+                        Inches(7.0), Inches(1.95), Inches(5.9), Inches(3.6))
 ex.fill.solid(); ex.fill.fore_color.rgb = LIGHT
 ex.line.color.rgb = NAVY
 add_text(s, Inches(7.2), Inches(2.05), Inches(5.5), Inches(0.4),
-         "Etiquetas que viajam com o pedaço:",
-         size=14, bold=True, color=NAVY)
-add_bullets(s, Inches(7.2), Inches(2.50), Inches(5.6), Inches(2.9), [
-    "Qual artigo? (Art. 12)",
-    "Qual documento? (REN 1.000/2021)",
-    "Qual página? (pg 4-5)",
-    "Tem tabela? Sim/Não",
-    "Tem trecho revogado? Sim/Não",
-], size=14)
+         "Metadados indexados no Qdrant:",
+         size=13, bold=True, color=NAVY)
+add_bullets(s, Inches(7.2), Inches(2.50), Inches(5.6), Inches(3.0), [
+    "article_ref (Art. 12)",
+    "doc_id, arquivo, ano, autor, situacao_doc",
+    "page_start, page_end",
+    "has_table, has_revoked (booleanos)",
+    "ementa, assunto, publicacao",
+], size=12)
 
-add_text(s, Inches(7.0), Inches(5.65), Inches(6), Inches(1.4),
-         "Quando a LLM responde, ela já sabe:\n"
-         "\"isso veio do Art. 12 da REN 1.000/2021\".\n"
-         "→ Citação automática e precisa.",
-         size=14, color=DARK)
+add_text(s, Inches(7.0), Inches(5.7), Inches(6), Inches(1.4),
+         "Permite filtros estruturados na query\n"
+         "(ex: ano=2021 AND has_revoked=false) +\n"
+         "citação automática [doc_id | art. X].",
+         size=12, color=DARK)
 add_footer(s, 7)
 
 # 8 — Chunking: estratégia em 3 níveis
@@ -492,11 +495,11 @@ r = p.add_run(); r.text = "1"
 r.font.size = Pt(20); r.font.bold = True; r.font.color.rgb = WHITE
 
 add_text(s, Inches(1.4), Inches(2.10), Inches(11.0), Inches(0.4),
-         "Cortar pela estrutura da lei (regex)",
+         "Split estrutural por hierarquia legal (regex)",
          size=17, bold=True, color=NAVY)
 add_text(s, Inches(1.4), Inches(2.55), Inches(11.0), Inches(0.85),
-         "Procura cabeçalhos: Art. 5º · § 1º · Capítulo II · Seção III · Título IV.\n"
-         "Cada um deles começa um novo pedaço. Resultado: 1 artigo = 1 chunk.",
+         "Cabeçalhos: Art. X · § N · Capítulo (romano) · Seção · Título.\n"
+         "1 artigo = 1 chunk · article_ref propaga como metadado pra citação.",
          size=13, color=DARK)
 
 # Nível 2
@@ -514,12 +517,12 @@ r = p.add_run(); r.text = "2"
 r.font.size = Pt(20); r.font.bold = True; r.font.color.rgb = WHITE
 
 add_text(s, Inches(1.4), Inches(3.65), Inches(11.0), Inches(0.4),
-         "SE o artigo for gigante (>900 tokens) → janela deslizante",
+         "SE bloco > 900 tokens → sliding window com overlap 100",
          size=17, bold=True, color=RGBColor(0xC2, 0x6B, 0x00))
 add_text(s, Inches(1.4), Inches(4.10), Inches(11.0), Inches(1.0),
-         "Alguns artigos têm 5+ páginas. Cortamos por parágrafos com sobreposição\n"
-         "de 100 tokens entre os pedaços — o final de um aparece no começo do próximo.\n"
-         "Assim o contexto não \"se perde\" entre chunks vizinhos.",
+         "Limite de 900 escolhido pra caber confortável no max_length=1024 do BGE-M3.\n"
+         "Quebra por parágrafo (\\n\\n) preservando coerência · overlap 100 tokens evita\n"
+         "perda de contexto na fronteira entre chunks vizinhos.",
          size=13, color=DARK)
 
 # Nível 3
@@ -537,11 +540,11 @@ r = p.add_run(); r.text = "3"
 r.font.size = Pt(20); r.font.bold = True; r.font.color.rgb = WHITE
 
 add_text(s, Inches(1.4), Inches(5.35), Inches(11.0), Inches(0.4),
-         "SE sobrar pedaço minúsculo (<60 tokens) → funde no anterior",
+         "SE chunk < 60 tokens → merge no anterior (exceto se has_table=true)",
          size=17, bold=True, color=RGBColor(0x22, 0x88, 0x44))
 add_text(s, Inches(1.4), Inches(5.80), Inches(11.0), Inches(0.85),
-         "Migalha tipo \"§ 3º Revogado.\" não vale chunk próprio — vira ruído na busca.\n"
-         "Exceção: se contém tabela, mantém separado (tabelas não podem ser fundidas).",
+         "Migalhas (\"§ 3º Revogado.\") inflam o índice e atrapalham reranker.\n"
+         "Tabelas mantêm chunk próprio · merge atualiza page_end e has_revoked.",
          size=13, color=DARK)
 
 # Bottom: comparativo curto
@@ -555,54 +558,54 @@ s = add_slide()
 add_header(s, "Transformando Texto em \"Coordenadas\"",
            "Como o computador entende o significado de um trecho")
 
-# Topo — explicação simples
-add_text(s, Inches(0.6), Inches(1.4), Inches(12), Inches(0.4),
-         "🧬 A ideia: cada trecho vira um \"DNA numérico\"",
+# Topo — modelo escolhido
+add_text(s, Inches(0.6), Inches(1.35), Inches(12), Inches(0.4),
+         "🧬 Modelo de embedding: BGE-M3",
          size=20, bold=True, color=NAVY)
-add_text(s, Inches(0.8), Inches(1.9), Inches(12), Inches(1.5),
-         "Um modelo de IA lê o texto e gera uma lista de 1024 números.\n"
-         "Trechos com significado parecido geram números parecidos.\n"
-         "→ Computador consegue \"buscar por significado\", não só por palavra-chave.",
-         size=15, color=DARK)
+add_text(s, Inches(0.8), Inches(1.85), Inches(12), Inches(1.0),
+         "Cada trecho vira vetor de 1024 dimensões + vetor esparso lexical.\n"
+         "Um único modelo entrega os dois — sem rodar BM25 separado.",
+         size=14, color=DARK)
 
-# Duas caixas — 2 tipos de busca
+# Duas caixas — dense + sparse
 b1 = s.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE,
-                        Inches(0.6), Inches(3.7), Inches(6.0), Inches(2.4))
+                        Inches(0.5), Inches(3.0), Inches(6.2), Inches(2.5))
 b1.fill.solid(); b1.fill.fore_color.rgb = LIGHT
 b1.line.color.rgb = NAVY
-add_text(s, Inches(0.8), Inches(3.85), Inches(5.6), Inches(0.5),
-         "🎯 Busca por significado", size=17, bold=True, color=NAVY)
-add_text(s, Inches(0.8), Inches(4.35), Inches(5.6), Inches(1.7),
-         "Pergunta: \"prazo de revisão tarifária\"\n"
-         "Encontra: \"período da reanálise das tarifas\"\n\n"
-         "Mesmo sem palavras iguais.",
-         size=14, color=DARK)
+add_text(s, Inches(0.7), Inches(3.10), Inches(5.8), Inches(0.5),
+         "Vetor denso (1024d, cosine)", size=16, bold=True, color=NAVY)
+add_text(s, Inches(0.7), Inches(3.60), Inches(5.8), Inches(1.9),
+         "Captura significado.\n"
+         "\"prazo de revisão\" ≈ \"período de reanálise\".\n\n"
+         "Distância: cosseno · normalizado.",
+         size=13, color=DARK)
 
 b2 = s.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE,
-                        Inches(6.9), Inches(3.7), Inches(6.0), Inches(2.4))
+                        Inches(6.9), Inches(3.0), Inches(6.0), Inches(2.5))
 b2.fill.solid(); b2.fill.fore_color.rgb = LIGHT
 b2.line.color.rgb = NAVY
-add_text(s, Inches(7.1), Inches(3.85), Inches(5.6), Inches(0.5),
-         "🔤 Busca por palavra-chave", size=17, bold=True, color=NAVY)
-add_text(s, Inches(7.1), Inches(4.35), Inches(5.6), Inches(1.7),
-         "Pergunta menciona \"REN 1.000\"\n"
-         "Encontra trechos com exatamente \"REN 1.000\".\n\n"
-         "Bom pra termos técnicos e nomes próprios.",
-         size=14, color=DARK)
+add_text(s, Inches(7.1), Inches(3.10), Inches(5.6), Inches(0.5),
+         "Vetor esparso (lexical)", size=16, bold=True, color=NAVY)
+add_text(s, Inches(7.1), Inches(3.60), Inches(5.6), Inches(1.9),
+         "Captura termos exatos.\n"
+         "\"REN 1.000\", \"bandeira tarifária\", siglas.\n\n"
+         "Substitui BM25 — nativo no Qdrant.",
+         size=13, color=DARK)
 
-# Bottom — onde guarda
-add_text(s, Inches(0.6), Inches(6.3), Inches(12), Inches(0.4),
-         "📦 Onde guardamos: Qdrant — banco de dados especializado em vetores",
-         size=18, bold=True, color=NAVY)
-add_text(s, Inches(0.8), Inches(6.75), Inches(12), Inches(0.4),
-         "Roda local (Docker), grátis. Permite filtrar por ano, documento, situação.",
-         size=14, color=DARK)
+# Decisões: por que BGE-M3 e por que Qdrant
+add_text(s, Inches(0.5), Inches(5.6), Inches(12), Inches(0.4),
+         "Decisões:",
+         size=15, bold=True, color=NAVY)
+add_bullets(s, Inches(0.7), Inches(6.0), Inches(12.3), Inches(1.4), [
+    "BGE-M3 escolhido por: multilíngue forte em PT-BR · 8K tokens de contexto · dense+sparse no mesmo modelo · roda local (custo zero)",
+    "Qdrant escolhido por: named vectors nativos (dense + sparse na mesma coleção) · filtros estruturados (ano, doc_id, has_table) · open-source · Docker local",
+], size=12)
 add_footer(s, 9)
 
 # 10 — Retriever
 s = add_slide()
-add_header(s, "Como Encontrar o Trecho Certo",
-           "3 \"investigadores\" trabalham juntos pra achar a melhor resposta")
+add_header(s, "Retriever Híbrido com RRF + Rerank",
+           "3 fontes de busca → fusão → reordenação → top 6")
 
 # Diagrama — 3 fontes → fusão → seleção final
 def pill(slide, x, y, w, h, label, color=NAVY, sub=None):
@@ -622,38 +625,38 @@ def pill(slide, x, y, w, h, label, color=NAVY, sub=None):
 pill(s, Inches(0.5), Inches(2.8), Inches(2.0), Inches(0.7),
      "Pergunta", color=DARK)
 
-# 3 investigadores
-pill(s, Inches(3.1), Inches(1.6), Inches(3.0), Inches(0.85),
-     "🎯 Investigador 1", color=NAVY, sub="busca por significado")
-pill(s, Inches(3.1), Inches(2.75), Inches(3.0), Inches(0.85),
-     "🔤 Investigador 2", color=NAVY, sub="busca por palavra-chave")
-pill(s, Inches(3.1), Inches(3.9), Inches(3.0), Inches(0.85),
-     "🔢 Investigador 3", color=NAVY, sub="busca por número da norma")
+# 3 fontes
+pill(s, Inches(3.1), Inches(1.55), Inches(3.0), Inches(0.85),
+     "Dense (BGE-M3)", color=NAVY, sub="top 40 por cosseno")
+pill(s, Inches(3.1), Inches(2.7), Inches(3.0), Inches(0.85),
+     "Sparse (BGE-M3)", color=NAVY, sub="top 40 lexical")
+pill(s, Inches(3.1), Inches(3.85), Inches(3.0), Inches(0.85),
+     "Identifier lookup", color=NAVY, sub="regex nº+ano em arquivo")
 
-# Fusão
-pill(s, Inches(6.7), Inches(2.75), Inches(2.4), Inches(0.85),
-     "🤝 Vota junto", color=RGBColor(0x44, 0x66, 0x99),
-     sub="combina os 3 rankings")
+# Fusão RRF
+pill(s, Inches(6.7), Inches(2.7), Inches(2.4), Inches(0.85),
+     "RRF (k=60)", color=RGBColor(0x44, 0x66, 0x99),
+     sub="fusão de rankings")
 
 # Reranker
-pill(s, Inches(9.6), Inches(2.75), Inches(2.0), Inches(0.85),
-     "⚖ Juiz final", color=RGBColor(0x44, 0x66, 0x99),
-     sub="reordena top 20")
+pill(s, Inches(9.6), Inches(2.7), Inches(2.2), Inches(0.85),
+     "Reranker", color=RGBColor(0x44, 0x66, 0x99),
+     sub="Cohere v3 / BGE-v2-m3")
 
 # Top
-pill(s, Inches(12.0), Inches(2.75), Inches(0.9), Inches(0.85),
+pill(s, Inches(12.2), Inches(2.7), Inches(0.7), Inches(0.85),
      "Top 6", color=RGBColor(0x33, 0x88, 0x55))
 
-# Explicação dos 3 investigadores
-add_text(s, Inches(0.6), Inches(5.1), Inches(12), Inches(0.4),
-         "Por que 3 investigadores?", size=18, bold=True, color=NAVY)
-add_bullets(s, Inches(0.8), Inches(5.55), Inches(12), Inches(2.0), [
-    "Cada um é bom em algo diferente — combinar é melhor que escolher um só",
-    (1, "Significado pega \"prazo de revisão\" mesmo se o texto diz \"período da reanálise\""),
-    (1, "Palavra-chave pega termos técnicos exatos como \"bandeira tarifária\""),
-    (1, "Número de norma pega \"REN 1.000/2021\" direto, sem depender de contexto"),
-    "Juiz final reordena com modelo mais preciso → garante que os 6 melhores ficam no topo",
-], size=14)
+# Decisões
+add_text(s, Inches(0.5), Inches(5.05), Inches(12), Inches(0.4),
+         "Decisões-chave:", size=16, bold=True, color=NAVY)
+add_bullets(s, Inches(0.7), Inches(5.5), Inches(12.3), Inches(2.5), [
+    "RRF (Reciprocal Rank Fusion) em vez de pesos fixos: combina rankings sem tuning manual; robusto a escalas diferentes (cosseno vs lexical)",
+    "Identifier lookup como 3ª fonte: regex extrai \"REN 1.000/2021\" da query e busca direto no campo arquivo — pergunta por nº de norma não pode depender só de embedding",
+    "Hard filter: se identifier match ≤ 3 docs, descarta dense/sparse e busca só dentro deles (evita ruído)",
+    "Reranker cross-encoder reordena top 20 → top 6: cohere-rerank-v3 (API) ou BGE-reranker-v2-m3 (local) como fallback",
+    "Penalty 0.85 em chunks de ementa (page_start=0): metadados não são conteúdo legal — não devem dominar topo",
+], size=11)
 add_footer(s, 10)
 
 # 11 — Geração & Avaliação
@@ -670,43 +673,40 @@ flow = s.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE,
 flow.fill.solid(); flow.fill.fore_color.rgb = LIGHT
 flow.line.color.rgb = NAVY
 add_text(s, Inches(0.8), Inches(2.05), Inches(5.7), Inches(2.4),
-         "1. Pegamos os 6 melhores trechos\n"
-         "2. Entregamos pra LLM (Gemini) com regras:\n"
-         "    – cite a fonte de cada afirmação\n"
-         "    – ignore texto revogado (~~...~~)\n"
-         "    – se não souber, diga \"não consta\"\n"
-         "3. LLM gera resposta + lista de citações",
-         size=14, color=DARK)
+         "Modelo: Gemini 2.5 Flash (Vertex AI)\n"
+         "1. Top-6 chunks viram contexto\n"
+         "2. System prompt impõe:\n"
+         "    – citação [doc_id | art. X] obrigatória\n"
+         "    – tratar ~~...~~ como revogado\n"
+         "    – \"não consta\" quando ausente\n"
+         "3. Saída: resposta + payload de citações",
+         size=13, color=DARK)
 
 add_text(s, Inches(0.6), Inches(4.65), Inches(6.1), Inches(0.4),
-         "🎚 Temperatura zero", size=18, bold=True, color=NAVY)
-add_text(s, Inches(0.8), Inches(5.10), Inches(5.9), Inches(1.8),
-         "LLM responde de forma determinística — mesma\n"
-         "pergunta, mesma resposta. Sem criatividade.\n"
-         "Em direito não queremos LLM \"inventando\".",
-         size=14, color=DARK)
+         "Decisões da geração", size=18, bold=True, color=NAVY)
+add_bullets(s, Inches(0.7), Inches(5.10), Inches(6.0), Inches(2.0), [
+    "temperature=0 + thinking_budget=0 → resposta determinística e barata",
+    "Gemini 2.5 Flash sobre Pro: latência 3-4× menor, qualidade suficiente",
+    "Fallback automático para gemini-2.5-flash-lite em erro",
+], size=11)
 
 # Direita — avaliação
 add_text(s, Inches(7.0), Inches(1.4), Inches(6), Inches(0.4),
-         "📏 Como medimos qualidade", size=20, bold=True, color=NAVY)
-add_text(s, Inches(7.2), Inches(1.9), Inches(5.9), Inches(0.8),
-         "Criamos um \"gabarito\" — lista de perguntas com\n"
-         "as respostas corretas anotadas pelo especialista.",
-         size=14, color=DARK)
+         "Avaliação — benchmark anotado", size=20, bold=True, color=NAVY)
+add_text(s, Inches(7.2), Inches(1.85), Inches(5.9), Inches(0.7),
+         "Gold JSONL com expected_doc_ids, expected_articles,\n"
+         "numeric_facts, must_contain, should_refuse.",
+         size=12, color=DARK)
 
 add_bullets(s, Inches(7.2), Inches(2.85), Inches(5.9), Inches(4.0), [
-    "Achou o documento certo? (Hit@k)",
-    "Citou o artigo certo?",
-    "O número/prazo está exato?",
-    "A resposta cobre o que o gabarito diz?",
-    "Quando não tem informação, ela recusa?",
-    "Quanto tempo levou?",
-], size=14)
-
-add_text(s, Inches(7.0), Inches(6.4), Inches(6), Inches(0.5),
-         "→ Outra LLM atua como \"juiz\" comparando\n"
-         "    resposta nossa × resposta do gabarito.",
-         size=13, color=GREY)
+    "Retrieval: Hit@k · Recall@k · Precision@k · nDCG@k · MRR",
+    "Citation-F1 (regex normaliza nº+ano)",
+    "Numeric exactness (tolerância em valores)",
+    "Refusal correctness (detecta \"não consta\")",
+    "LLM-as-judge: faithfulness · correctness · completeness · critical_error",
+    "Latência p50/p95 separadas (retrieval vs geração)",
+    "Bootstrap CI 95% — comparação estatística entre versões do retriever",
+], size=11)
 add_footer(s, 11)
 
 # 12 — Resultado & Trade-offs

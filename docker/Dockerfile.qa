@@ -21,6 +21,8 @@ COPY requirements.txt ./
 RUN pip install -r requirements.txt
 
 COPY src ./src
+COPY app.py ./
+COPY app_pages ./app_pages
 
 ENV EMBED_DEVICE=cpu \
     PORT=8080

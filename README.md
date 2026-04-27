@@ -4,6 +4,11 @@ Guia rápido para subir o servidor na GCP, parar quando não estiver usando, e c
 
 ## FAZER TESTES: http://34.28.189.251:8501 (RODANDO EM UMA VM NA GCP 24/7)
 
+UI Streamlit com 3 páginas:
+- **Pipeline** — status de ingestão (`download/parse/chunk/embed`) por estágio, com gráfico de progresso e lista de erros lidos do `state.sqlite`.
+- **RAG Tester** — formulário pra disparar `/ask`, ver `answer` + `citations` + scores e copiar JSON.
+- **Documentos** — browser dos PDFs indexados com filtros (ano, situação, tipo).
+
 ## FASTAPI: 34.28.189.251:8080/docs
 
 login: desafio-rag
@@ -13,10 +18,11 @@ senha: queria_uma_bolsa_rs
 
 ## 1. Subir / parar o servidor
 
-A VM `aneel-rag-vm` (Compute Engine, `e2-standard-4`, us-central1-a) hospeda dois containers:
+A VM `aneel-rag-vm` (Compute Engine, `e2-standard-4`, us-central1-a) hospeda três containers:
 
-- `aneel-qdrant` — índice vetorial (124.822 chunks, BGE-M3 dense + sparse)
-- `aneel-qa` — FastAPI com `/ask`, `/health`, `/docs`
+- `aneel-qdrant` — índice vetorial (124.822 chunks, BGE-M3 dense + sparse), porta `6333`
+- `aneel-qa` — FastAPI (`src/qa_server.py`) com `/ask`, `/health`, `/docs`, porta `8080`
+- `aneel-ui` — Streamlit (`app.py`) com Pipeline / RAG Tester / Documentos, porta `8501`
 
 Cobrança de compute acontece apenas enquanto a VM está `RUNNING`. Pause entre sessões.
 
@@ -256,6 +262,7 @@ Apenas chunks com tabela:
 | `/ask` após `deploy/start.sh` (warm-up já rodou) | 3–12 s |
 | `/ask` primeira chamada após reboot sem warm-up | 1–3 min (carrega BGE-M3 + reranker + doc_index) |
 | `/health` | < 200 ms |
+| Streamlit `:8501` (load inicial) | 1–3 s |
 
 ---
 
@@ -321,6 +328,9 @@ Metadata JSONs
      │
      ▼
     [qa] → retriever híbrido (RRF) + reranker + Gemini 2.5 Flash → resposta
+                            │
+                            ├── FastAPI (qa_server.py, porta 8080) → /ask, /health, /docs
+                            └── Streamlit UI (app.py, porta 8501) → Pipeline / RAG Tester / Documentos
 ```
 
 ## Requisitos
@@ -465,6 +475,27 @@ Saída:
 python run_pipeline.py evaluate data/eval/benchmark.jsonl [--top-k 6]
 ```
 
+### Benchmark hard (12 queries × 6 categorias)
+
+`deploy/bench_hard.py` e `deploy/bench_hard2.py` disparam 12 perguntas cada contra o `/ask` em produção, cobrindo 6 categorias: **tabela** (valores numéricos exatos), **revogada** (vigência histórica), **artigo específico**, **scan** (páginas vision-heavy), **identifier lookup** (número+ano) e **negativa** (pergunta sem resposta no corpus). Inclui `RATE_SLEEP=6.5s` entre queries para respeitar o limite de 10 RPM do Cohere Rerank Trial.
+
+```bash
+python -u deploy/bench_hard.py  > bench_results.txt
+python -u deploy/bench_hard2.py > bench_results2.txt
+```
+
+## UI Streamlit (local)
+
+```bash
+streamlit run app.py
+```
+
+Sobe em `http://localhost:8501` com 3 páginas:
+
+- **Pipeline** — métricas OK/Pendente/Erro por estágio direto do `state.sqlite`, gráfico empilhado e tabela dos últimos erros.
+- **RAG Tester** — formulário interativo pra `/ask` com `top_k` e `filters`, mostra `answer`, scores de cada citação e link para o PDF original.
+- **Documentos** — browser dos docs ingeridos com filtros dinâmicos (ano, situação, tipo, autor) carregados do SQLite.
+
 ## Estimativa de Custo (Vertex AI)
 
 Corpus completo: **18.688 documentos / 27.039 PDFs / ~216.000 páginas estimadas**.
@@ -500,14 +531,40 @@ desafio-rag/
 │   ├── parse_vision.py           # OCR via Gemini 2.5 Flash (Vertex AI)
 │   ├── parse_runner.py           # orquestrador parse
 │   ├── parse_vision_runner.py    # orquestrador vision
-│   ├── chunker.py                # chunking por tokens
-│   ├── embed.py                  # BGE-M3 embedding
+│   ├── tables.py                 # extração tabelas (pdfplumber + Camelot fallback)
+│   ├── strikethrough.py          # detecção de tachado → marca ~~revogado~~
+│   ├── chunker.py                # chunking por tokens, separação por artigo
+│   ├── embed.py                  # BGE-M3 embedding (dense + sparse)
 │   ├── ingest.py                 # upsert Qdrant
-│   ├── retriever.py              # busca híbrida (RRF) + reranker BGE
+│   ├── ingest_metadata.py        # carrega JSONs ANEEL → state.sqlite
+│   ├── retriever.py              # busca híbrida (RRF) + reranker (Cohere/BGE)
 │   ├── qa.py                     # geração de resposta (Gemini via Vertex AI)
-│   └── evaluate.py               # harness de avaliação (LLM-as-judge)
+│   ├── qa_server.py              # FastAPI /ask, /health, /docs (Basic Auth)
+│   ├── evaluate.py               # harness de avaliação (LLM-as-judge)
+│   └── utils/
+│       ├── rate_limiter.py       # token bucket RPM/RPD
+│       ├── vertex_client.py      # builder google-genai com vertexai=True
+│       └── gcs.py                # helpers GCS (snapshots de state/qdrant)
+├── app.py                        # entry Streamlit (sidebar + roteamento de páginas)
+├── app_pages/
+│   ├── pipeline.py               # status da pipeline (counts + gráfico)
+│   ├── rag_tester.py             # cliente /ask interativo
+│   └── doc_browser.py            # browser de documentos com filtros
+├── deploy/
+│   ├── start.sh / stop.sh        # liga/desliga VM com warm-up
+│   ├── docker-compose.prod.yml   # qdrant + qa + ui na VM
+│   ├── vm-startup.sh             # bootstrap da VM (instala docker, puxa imagens)
+│   ├── cloudbuild-qa.yaml        # build da imagem qa via Cloud Build
+│   ├── embed-job.yaml            # job de embedding em Cloud Run / batch
+│   ├── bench_hard.py             # benchmark 12 queries × 6 categorias
+│   └── bench_hard2.py            # round 2, queries novas mesmas categorias
+├── scripts/
+│   ├── test_10_docs.py           # smoke-test do parse em 10 PDFs
+│   └── test_retrieval.py         # sanity-check do retriever híbrido
+├── docker/
+│   └── Dockerfile.pipeline       # imagem para etapas de ingestão
 ├── run_pipeline.py               # CLI principal
-├── docker-compose.yml
+├── docker-compose.yml            # Qdrant local
 ├── requirements.txt
 └── .env.example
 ```

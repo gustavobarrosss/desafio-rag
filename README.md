@@ -2,7 +2,7 @@
 
 Guia rápido para subir o servidor na GCP, parar quando não estiver usando, e consultar o endpoint `/ask` com exemplos prontos.
 
-(VISTO QUE É UMA V NA GCP, TALVEZ VOCÊ NÃO CONSIGA SUBIR, VISTO QUE NÃO TEM AS CREDENCIAIS (rsrs). Teoricamente nosso frontend já está ao vosso dispor nos links abaixo.)
+(VISTO QUE É UMA VM NA GCP, TALVEZ VOCÊ NÃO CONSIGA SUBIR, VISTO QUE NÃO TEM AS CREDENCIAIS (rsrs). Teoricamente nosso frontend já está ao vosso dispor nos links abaixo.)
 
 ## FAZER TESTES: http://***REMOVIDO***:8501 (RODANDO EM UMA VM NA GCP 24/7)
 

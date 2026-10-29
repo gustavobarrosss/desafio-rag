@@ -7,14 +7,15 @@ from __future__ import annotations
 
 import base64
 import json
+import os
 import sys
 import time
 import urllib.error
 import urllib.request
 
-URL = "http://***REMOVIDO***:8080/ask"
-USER = "desafio-rag"
-PASS = "***REMOVIDO***"
+URL = os.environ.get("QA_URL", "http://localhost:8080/ask")
+USER = os.environ["QA_USERNAME"]
+PASS = os.environ["QA_PASSWORD"]
 TIMEOUT = 180  # per-query timeout seconds
 RATE_SLEEP = 6.5  # seconds between queries — Cohere Trial limit 10 RPM
 

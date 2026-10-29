@@ -53,7 +53,7 @@ bash deploy/stop.sh
 ### URL pública
 
 ```
-http://***REMOVIDO***:8080
+http://<IP_EXTERNO>:8080
 ```
 
 > **⚠️ HTTP sem TLS.** Senha trafega em texto claro. OK para benchmark/demo de curto prazo — rotacione depois.
@@ -63,13 +63,14 @@ http://***REMOVIDO***:8080
 
 ### Credenciais
 
-- **user:** `desafio-rag`
-- **senha:** `***REMOVIDO***`
+Basic Auth com usuário e senha definidos nas variáveis de ambiente `QA_USERNAME` e
+`QA_PASSWORD` do container `aneel-qa`. As credenciais não ficam no repositório:
+peça aos autores.
 
 ### Pelo browser (Swagger UI)
 
 1. Confirme que a VM está `RUNNING` (`bash deploy/start.sh`).
-2. Abra: http://***REMOVIDO***:8080/docs
+2. Abra: `http://<IP_EXTERNO>:8080/docs`
 3. O navegador pede user/senha — informe os de cima.
 4. Clique em `POST /ask` → **Try it out**.
 5. Cole um JSON no corpo (veja exemplos abaixo) → **Execute**.
@@ -78,8 +79,8 @@ http://***REMOVIDO***:8080
 ### Pelo terminal (curl)
 
 ```bash
-curl -u "desafio-rag:***REMOVIDO***" \
-  -X POST http://***REMOVIDO***:8080/ask \
+curl -u "$QA_USERNAME:$QA_PASSWORD" \
+  -X POST "http://<IP_EXTERNO>:8080/ask" \
   -H "Content-Type: application/json" \
   -d '{"question":"O que diz a REN 1000/2021?","top_k":6}'
 ```

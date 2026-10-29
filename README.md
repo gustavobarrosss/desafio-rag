@@ -2,19 +2,18 @@
 
 Guia rápido para subir o servidor na GCP, parar quando não estiver usando, e consultar o endpoint `/ask` com exemplos prontos.
 
-(VISTO QUE É UMA VM NA GCP, TALVEZ VOCÊ NÃO CONSIGA SUBIR, VISTO QUE NÃO TEM AS CREDENCIAIS (rsrs). Teoricamente nosso frontend já está ao vosso dispor nos links abaixo.)
+(VISTO QUE É UMA VM NA GCP, TALVEZ VOCÊ NÃO CONSIGA SUBIR, VISTO QUE NÃO TEM AS CREDENCIAIS (rsrs). O frontend e a API rodam nessa VM, como descrito abaixo.)
 
-## FAZER TESTES: http://***REMOVIDO***:8501 (RODANDO EM UMA VM NA GCP 24/7)
+## Demo: UI Streamlit na porta `8501` da VM na GCP
 
 UI Streamlit com 3 páginas:
 - **Pipeline** — status de ingestão (`download/parse/chunk/embed`) por estágio, com gráfico de progresso e lista de erros lidos do `state.sqlite`.
 - **RAG Tester** — formulário pra disparar `/ask`, ver `answer` + `citations` + scores e copiar JSON.
 - **Documentos** — browser dos PDFs indexados com filtros (ano, situação, tipo).
 
-## FASTAPI: ***REMOVIDO***:8080/docs
+## FastAPI: porta `8080` da VM (`/docs`)
 
-login: desafio-rag
-senha: ***REMOVIDO***
+O IP externo é efêmero e o acesso exige Basic Auth (ver seção 2).
 
 ---
 
@@ -81,8 +80,9 @@ Endpoint base: `http://<IP_EXTERNO>:8080`
 
 ### Credenciais
 
-- **user:** `desafio-rag`
-- **senha:** `***REMOVIDO***`
+Basic Auth com usuário e senha definidos nas variáveis de ambiente `QA_USERNAME` e
+`QA_PASSWORD` do container `aneel-qa`. As credenciais não ficam no repositório:
+peça aos autores.
 
 ### Pelo browser (Swagger UI)
 
@@ -100,7 +100,7 @@ IP=$(gcloud compute instances describe aneel-rag-vm \
   --zone=us-central1-a --project=desafio-rag \
   --format="value(networkInterfaces[0].accessConfigs[0].natIP)")
 
-curl -u "desafio-rag:***REMOVIDO***" \
+curl -u "$QA_USERNAME:$QA_PASSWORD" \
   -X POST "http://${IP}:8080/ask" \
   -H "Content-Type: application/json" \
   -d '{"question":"O que diz a REN 1000/2021?","top_k":6}'
